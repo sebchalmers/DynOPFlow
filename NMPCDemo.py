@@ -29,7 +29,7 @@ Net = PowerGrid(NBus,Graph)
 Net.Flow()
 
 Net.PowerFlowBounds = {
-                       'Vmin' :           [450.0 for k in range(NBus)],
+                       'Vmin' :           [0.0 for k in range(NBus)],
                        'Vmax' :           [500.0 for k in range(NBus)],
                        'LineCurrentMax' : [50.0 for k in range(5)    ]
                       }
@@ -148,7 +148,7 @@ Net.Profiles(Horizon + Nsimulation)
 
 Nprofile = Net.Nprofile
 
-dWind = [rand.normalvariate(0,0.0) for k in range(Nprofile)]
+dWind = [rand.normalvariate(0,0.2) for k in range(Nprofile)]
 
 LoadActivePower   = [300*np.cos(2*np.pi*k*dt/24.) - 1000  for k in range(Nprofile)]
 LoadReactivePower = [0.75*LoadActivePower[k] for k in range(Nprofile)]
@@ -160,7 +160,7 @@ u0 = Net.u0()
 x0 = Net.x0()
 
 u0['Thermal','Power']         = 0.
-x0['Wind',   'WindSpeed']     = 8.5#9.25
+x0['Wind',   'WindSpeed']     = 9.25
 x0['Storage','Energy']        = 0.9*2e3
 x0['Hydro',  'WaterHeight']   = 0.9*20
 
@@ -187,7 +187,7 @@ Traj, NMPC_Info = Net.NMPCSimulation(x0 = x0, u0 = u0, init = init, Simulation =
 Net.ExtractInfo(Traj, PlantPower = 'True', BusPower = 'True', TotalPower = 'True')
 
 Path = '/Users/sebastien/Desktop/Research/PowerFlowCodes/Paper/Figures'
-SavedFigs = Net.DYNSolvePlot(Traj, dt = 1, Path = Path)          
+SavedFigs = Net.DYNSolvePlot(Traj, dt = 1/24., Path = Path)          
 
 
 ## Create & save the figures for the paper
@@ -195,16 +195,16 @@ SavedFigs = Net.DYNSolvePlot(Traj, dt = 1, Path = Path)
 #plt.close()
     
     
-plt.figure(2,figsize=(11.0, 5.0))
-NLine     =  len(    Net.Graph   )
-time = {}
-for key in ['States','Inputs']:
-    time[key] = np.array([k*dt for k in range(len(Traj[key]))]).T
-
-for k in range(NLine):
-    plt.step(time['Inputs'],Net.SolutionInfo['LineCurrentsModule'][k,:],where = 'post', label = str(Net.Graph[k][0])+'-'+str(Net.Graph[k][1]))
-
-plt.title("Lines current |.| (kA)")
-plt.legend(bbox_to_anchor=(1, 1), loc=2, borderaxespad=0.)
-plt.savefig('Lines'+'.eps',format='eps', facecolor='w', edgecolor='k',)
-plt.close()    
+#plt.figure(2,figsize=(11.0, 5.0))
+#NLine     =  len(    Net.Graph   )
+#time = {}
+#for key in ['States','Inputs']:
+#    time[key] = np.array([k*dt for k in range(len(Traj[key]))]).T
+#
+#for k in range(NLine):
+#    plt.step(time['Inputs'],Net.SolutionInfo['LineCurrentsModule'][k,:],where = 'post', label = str(Net.Graph[k][0])+'-'+str(Net.Graph[k][1]))
+#
+#plt.title("Lines current |.| (kA)")
+#plt.legend(bbox_to_anchor=(1, 1), loc=2, borderaxespad=0.)
+#plt.savefig('Lines'+'.eps',format='eps', facecolor='w', edgecolor='k',bbox_inches='tight')
+#plt.close()    

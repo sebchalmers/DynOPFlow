@@ -1057,8 +1057,9 @@ class PowerGrid:
         def SaveFig(Path,Name):
             if not(Path == []):
                 SavedFigs.append(Name)
-                plt.savefig(Path+'/'+Name+'.eps',format='eps')
-                plt.close()
+                plt.tight_layout()
+                plt.savefig(Path+'/'+Name+'.eps',format='eps', facecolor='w', edgecolor='k',bbox_inches='tight')
+                #plt.close()
             return SavedFigs
         
         
@@ -1092,41 +1093,43 @@ class PowerGrid:
         plt.hold('on')
         for k in range(NBus):
             plt.step(time['Inputs'],self.SolutionInfo['BusVoltagesModule'][:,k],where = 'post', label = str(k))
-        
-        plt.title("Bus Voltages, |.| (kV)")
-        #plt.legend(bbox_to_anchor=(1, 1), loc=2, borderaxespad=0.)
+        plt.ylabel('kV')
+        #plt.xlabel('time (s)')
+        plt.title("Voltages, |.|")
         
         plt.subplot(2,3,2)
         plt.hold('on')
         for k in range(NBus):
             plt.step(time['Inputs'],self.SolutionInfo['BusVoltagesAngle'][:,k],where = 'post', label = str(k))
-        
-        plt.title("Bus Voltage, angle (deg)")
-        #plt.legend(bbox_to_anchor=(1, 1), loc=2, borderaxespad=0.)
+        plt.ylabel('deg')
+        #plt.xlabel('time (s)')
+        plt.title("Voltage, angle")
         
         plt.subplot(2,3,5)
         plt.hold('on')
         for k in range(NBus):
-            plt.step(time['Inputs'],self.SolutionInfo['BusActivePower'][:,k],where = 'post', label = str(k))
-        
-        plt.title("Injected Active power (MW)")
+            plt.step(time['Inputs'],1e-3*self.SolutionInfo['BusActivePower'][:,k],where = 'post', label = str(k))
+        plt.ylabel('GW')
+        plt.xlabel('time (s)')
+        plt.title("Active power")
         plt.legend(bbox_to_anchor=(1, 1), loc=2, borderaxespad=0.)
         
         plt.subplot(2,3,4)
         plt.hold('on')
         for k in range(NBus):
-            plt.step(time['Inputs'],self.SolutionInfo['BusReactivePower'][:,k],where = 'post', label = str(k))
-        #plt.legend(bbox_to_anchor=(1, 1), loc=2, borderaxespad=0.)
-        
-        plt.title("Injected reactive power (MVA)")
+            plt.step(time['Inputs'],1e-3*self.SolutionInfo['BusReactivePower'][:,k],where = 'post', label = str(k))
+        plt.ylabel('GW')
+        plt.xlabel('time (s)')
+        plt.title("Reactive power")
         
         plt.subplot(2,3,3)
         plt.hold('on')
         for k in range(NBus):
             plt.step(time['Inputs'],self.SolutionInfo['BusCurrentModule'][:,k],where = 'post', label = str(k))
+        plt.ylabel('kA')
+        plt.xlabel('time (s)')
+        plt.title('Current, |.|')
         #plt.legend(bbox_to_anchor=(1, 1), loc=2, borderaxespad=0.)
-        
-        plt.title('Injected current, |.| (kA)')
         
         SaveFig(Path,'Grid')
         
@@ -1136,53 +1139,27 @@ class PowerGrid:
         for k in range(NLine):
             plt.step(time['Inputs'],self.SolutionInfo['LineCurrentsModule'][k,:],where = 'post', label = str(self.Graph[k][0])+'-'+str(self.Graph[k][1]))
         
-        plt.title("Lines current |.| (kA)")
+        plt.xlabel('time (s)')
+        plt.ylabel('kA')
+        plt.title("Lines current |.|")
         plt.legend(bbox_to_anchor=(1, 1), loc=2, borderaxespad=0.)
 
         SaveFig(Path,'Lines')
 
-
-        
-        #plt.figure(5)
-        #plt.hold('on')
-        #
-        #for key in self.SolutionInfo['TotalPower'].keys():
-        #    plt.step(time['Inputs'],self.SolutionInfo['TotalPower'][key],where = 'post', label = key)
-        #    #if (key == 'Wind'):
-        #    #    CPmax = self.Plants['Wind'][0]['CPmax']
-        #    #    A     = self.Plants['Wind'][0]['A']
-        #    #    PWind = 0.5*rho_air*A*CPmax*np.array(v_opt['States',:,'Wind','WindSpeed'])**3                
-        #    #    #plt.step(time['States'],PWind,color='k',where = 'post', label = 'Available wind', linestyle = ':')
-        #    #    plt.plot(time['States'][1:],PWind[:-1],color='k', drawstyle = 'steps', label = 'Available wind', linestyle = ':')
-        #    #    plt.hlines(self.Plants['Wind'][0]['Pmax'], time['States'][0], time['States'][-1], colors='r', linestyle='dashed', label = 'Rated Wind Pow.')
-        #
-        #plt.legend(bbox_to_anchor=(1, 1), loc=2, borderaxespad=0.)
-        #
-        #
-        #plt.title('Load Power (black) & Total injected power (red)')
-        #        
-        
-        #plt.figure(6)
-        #fig = 1
-        #for plant in self.PlantList:            
-        #    plt.subplot(SizeSubpltAll,SizeSubpltAll,fig)
-        #    plt.step(time['Inputs'],self.SolutionInfo['PlantCosPhi'][plant.label][0], color = 'k')
-        #    fig += 1
-        #    plt.ylabel('cos(phi)')
-        #    plt.title(key+', bus '+str(plant.Bus))
                 
         plt.figure(7)
         fig = 1
         for plant in self.PlantList:            
             plt.subplot(SizeSubpltAll,SizeSubpltAll,fig)
-            plt.step(time['Inputs'],self.SolutionInfo['PlantActivePower'][plant.label][0], color = 'k', label = 'Act. Power')
-            plt.step(time['Inputs'],self.SolutionInfo['PlantReactivePower'][plant.label][0], color = 'r', label = 'React. Power')
+            plt.step(time['Inputs'],1e-3*self.SolutionInfo['PlantActivePower'][plant.label][0], color = 'k', label = 'Act. Power')
+            plt.step(time['Inputs'],1e-3*self.SolutionInfo['PlantReactivePower'][plant.label][0], color = 'r', label = 'React. Power')
             fig += 1
+            plt.ylabel('GW')
+            plt.xlabel('time (s)')
             plt.title(str(plant.label)+', bus '+str(plant.Bus))
                 
-        #plt.subplot(2,3,5)
         plt.legend(bbox_to_anchor=(1, 1), loc=2, borderaxespad=0.)
-        
+
         SaveFig(Path,'BusPower')
 
         
@@ -1200,8 +1177,10 @@ class PowerGrid:
                 print "Warning: plant power unidentified, not plotting"
             
             if len(Power)>0:
-                plt.step(time['Inputs'],Power, label = plant.label,where = 'post')
+                plt.step(time['Inputs'],1e-3*np.array(Power), label = plant.label,where = 'post')
         plt.legend(bbox_to_anchor=(1, 1), loc=2, borderaxespad=0.)
+        plt.xlabel('time (s)')
+        plt.ylabel('GW')
         plt.title('Plant power')
         
         SaveFig(Path,'PlantPower')
