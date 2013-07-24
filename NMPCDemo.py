@@ -195,7 +195,7 @@ SavedFigs = Net.DYNSolvePlot(Traj, dt = 1, Path = Path)
 #plt.close()
     
     
-plt.figure(2,figsize=(12.0, 5.0))
+plt.figure(2,figsize=(11.0, 5.0))
 NLine     =  len(    Net.Graph   )
 time = {}
 for key in ['States','Inputs']:
