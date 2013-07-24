@@ -4,20 +4,16 @@ Created on Fri Nov 16 20:18:08 2012
 
 @author: sebastien
 
-Runs a Monte Carlo simulation of NMPC loops with random wind profiles, various horizon length, and WITH forecast uncertainty
-
+Runs an NMPC scheme on a simple power grid
 
 """
 
 import DynOPFlow 
 reload(DynOPFlow)
-
 from DynOPFlow import *
-
 
 ################    DEFINE GRID TOPOLOGY    ##################
 # Undirected connectivity graph: node i, node j, Zij
-
 #Paper graph
 NBus = 6 # Number of bus
 
@@ -29,11 +25,8 @@ Graph = [  [ 0,1, 1+10j   ],
            [ 3,4, 1+10j   ]  ] 
 
 #Define Net properties
-
 Net = PowerGrid(NBus,Graph)
 Net.Flow()
-
-
 
 Net.PowerFlowBounds = {
                        'Vmin' :           [450.0 for k in range(NBus)],
@@ -43,12 +36,12 @@ Net.PowerFlowBounds = {
 
 
 dt = 1.
-Nsimulation = int(10*24)
+
 
 #####  Define Hydro Plant #####
 Hydro = Plant(States = ['WaterHeight'], Inputs = ['qflow'], R = 0.1, Directionality = 'Bi', Bus = 4, label = 'Hydro')
 
-etaT      =  1.25
+etaT      =  0.8#1.25
 etaP      =  0.75
 A         =  1e-3
 rho_air   =  1.2
@@ -60,18 +53,13 @@ PPump     =  Hydro.Inputs['Pcharge']
 PTurb     =  Hydro.Inputs['Pdischarge']
 h         =  Hydro.States['WaterHeight']
 
-dh = (etaP*PPump - etaT*PTurb)/(rho_water*gravity*A*h) + qflow/A 
-Const = [etaT*PTurb - qTurbmax*rho_water*gravity*h]
-Cost = (etaT - 1)*PTurb + (1 - etaP)*PPump + PPump*PTurb
+dh = (etaP*PPump - PTurb/etaT)/(rho_water*gravity*A*h) + qflow/A 
+Const = [PTurb/etaT - qTurbmax*rho_water*gravity*h]
+Cost = (1/etaT - 1)*PTurb + (1 - etaP)*PPump 
 
 Hydro.setDynamics     (  RHS = dh, dt = dt    )
 Hydro.setConstraints  (  Const                )
 Hydro.setCost         (  Cost                 )
-
-#TConst = (15-h)
-#Hydro.setConstraints(TConst, Terminal = 'True')
-#TCost = -100*h
-#Hydro.setCost(TCost, Terminal = 'True')
 
 Hydro.addPlant(Net)
 
@@ -80,26 +68,20 @@ Hydro.UB['States','WaterHeight'] = 20.
 Hydro.UB['Inputs','Pcharge']     = 500.
 Hydro.UB['Inputs','Pdischarge']  = 1000.
 
-#Hydro.LB['Inputs','qflow']  = 6e-4
-#Hydro.UB['Inputs','qflow']  = 6e-4
-
-
 #####   Define Storage   #####  
 Storage = Plant(States = ['Energy'], R = 0.1,  Directionality = 'Bi', Bus = 1, label = 'Storage')
 etaC       = 0.9
-etaD       = 1.1
+etaD       = 0.95
 tau        = 1e-6
 Pcharge    = Storage.Inputs['Pcharge']
 Pdischarge = Storage.Inputs['Pdischarge']
 E          = Storage.States['Energy']
 
-dEnergy = etaC*Pcharge - etaD*Pdischarge - tau*E
+dEnergy = etaC*Pcharge - Pdischarge/etaD - tau*E
 Storage.setDynamics( RHS = dEnergy, dt = dt )
 
-
-Cost = (etaD - 1)*Pdischarge + (1 - etaC)*Pcharge + Pcharge*Pdischarge
+Cost = (1/etaD - 1)*Pdischarge + (1 - etaC)*Pcharge #+ Pcharge*Pdischarge
 Storage.setCost(Cost)
-
 Storage.addPlant(Net)
 
 Storage.LB['States','Energy']      = 0.
@@ -118,8 +100,6 @@ Tau           = 0.0
 WindSpeedMean = 10.
 
 Wind          = Plant(States = ['WindSpeed'], Inputs = ['dWindSpeed'], R = 0.1, Bus = 5, label = 'Wind')
-
-#Wind availaibility
 PWind         = 0.5*rho_air*A*CPmax*Wind.States['WindSpeed']**3
 
 Const = []
@@ -130,12 +110,9 @@ Wind.setConstraints(Const)
 #Wind random walk
 dWind         = Wind.Inputs['dWindSpeed'] - Tau*(Wind.States['WindSpeed'] - WindSpeedMean)
 Wind.setDynamics( RHS = dWind, dt = dt)
-            
+  
 Wind.addPlant(Net)
-
 Wind.UB['Inputs','Power']      = Prated
-#Wind.LB['Inputs','dWindSpeed'] = 0
-#Wind.UB['Inputs','dWindSpeed'] = 0
 
 #####   Thermal   #####
 ThermalRamp       = 200. 
@@ -149,8 +126,6 @@ Thermal.setCost(Cost)
 Const =   [    ThermalPower - ThermalPower_prev - ThermalRamp  ]  # ThermalPower - ThermalPower_prev <= ThermalRamp
 Const.append( -ThermalPower + ThermalPower_prev - ThermalRamp  )  # - ThermalRamp <= ThermalPower - ThermalPower_prev
 Thermal.setConstraints(Const)
-
-
 
 Thermal.addPlant(Net)
 
@@ -167,7 +142,7 @@ Load.UB['Inputs','ReactivePower'] =  -750
 #################    END OF NETWORK DEFINITION    ###########################
 
 Horizon    = 48
-Nsimulation = 10*24
+Nsimulation = int(10*24)
 
 Net.Profiles(Horizon + Nsimulation)
 
@@ -185,7 +160,7 @@ u0 = Net.u0()
 x0 = Net.x0()
 
 u0['Thermal','Power']         = 0.
-x0['Wind',   'WindSpeed']     = 9.25
+x0['Wind',   'WindSpeed']     = 8.5#9.25
 x0['Storage','Energy']        = 0.9*2e3
 x0['Hydro',  'WaterHeight']   = 0.9*20
 
@@ -208,13 +183,28 @@ Net.UBInputProfiles['Load',:,'ReactivePower'] = LoadReactivePower
                                               
 Traj, NMPC_Info = Net.NMPCSimulation(x0 = x0, u0 = u0, init = init, Simulation = Nsimulation) 
                        
-
-#Exctract info
+#Plotting
 Net.ExtractInfo(Traj, PlantPower = 'True', BusPower = 'True', TotalPower = 'True')
-Net.DYNSolvePlot(Traj, dt = 1)          
+
+Path = '/Users/sebastien/Desktop/Research/PowerFlowCodes/Paper/Figures'
+SavedFigs = Net.DYNSolvePlot(Traj, dt = 1, Path = Path)          
 
 
-
-
+## Create & save the figures for the paper
+#plt.savefig('/Users/sebastien/Desktop/Research/PowerFlowCodes/Paper/Figures/Simultation.eps',format='eps')
+#plt.close()
     
     
+plt.figure(2,figsize=(12.0, 5.0))
+NLine     =  len(    Net.Graph   )
+time = {}
+for key in ['States','Inputs']:
+    time[key] = np.array([k*dt for k in range(len(Traj[key]))]).T
+
+for k in range(NLine):
+    plt.step(time['Inputs'],Net.SolutionInfo['LineCurrentsModule'][k,:],where = 'post', label = str(Net.Graph[k][0])+'-'+str(Net.Graph[k][1]))
+
+plt.title("Lines current |.| (kA)")
+plt.legend(bbox_to_anchor=(1, 1), loc=2, borderaxespad=0.)
+plt.savefig('Lines'+'.eps',format='eps', facecolor='w', edgecolor='k',)
+plt.close()    

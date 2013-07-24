@@ -1048,7 +1048,19 @@ class PowerGrid:
 
     
     #### RESULT PLOTTING #####
-    def DYNSolvePlot(self, v_opt, NMPC = 'False', dt = 1):
+    
+
+    def DYNSolvePlot(self, v_opt, NMPC = 'False', dt = 1, Path = []):
+        
+        SavedFigs = []
+        
+        def SaveFig(Path,Name):
+            if not(Path == []):
+                SavedFigs.append(Name)
+                plt.savefig(Path+'/'+Name+'.eps',format='eps')
+                plt.close()
+            return SavedFigs
+        
         
         if (len(v_opt['States']) < 2):
             print "Plotting warning: no time sequence available, run with .Nsim > 1. Plotting not proceeding."
@@ -1116,77 +1128,48 @@ class PowerGrid:
         
         plt.title('Injected current, |.| (kA)')
         
-        plt.subplot(2,3,6)
-        plt.hold('on')
-        for k in range(NBus):
-            plt.step(time['Inputs'],self.SolutionInfo['BusCurrentAngle'][:,k],where = 'post', label = str(k))
-        plt.title('Injected current, angle (deg)')
-        #plt.legend(bbox_to_anchor=(1, 1), loc=2, borderaxespad=0.)
+        SaveFig(Path,'Grid')
         
         
-        
+                
         plt.figure(2)
         for k in range(NLine):
             plt.step(time['Inputs'],self.SolutionInfo['LineCurrentsModule'][k,:],where = 'post', label = str(self.Graph[k][0])+'-'+str(self.Graph[k][1]))
         
         plt.title("Lines current |.| (kA)")
         plt.legend(bbox_to_anchor=(1, 1), loc=2, borderaxespad=0.)
-        
-        plt.figure(3)
-        
-        
-        plt.figure(3)
-        fig = 1
-        for plant in PlantList:
-            plt.subplot(SizeSubplt,SizeSubplt,fig)
-            plt.hold('on')
-            plt.title(plant.label+' Power')
 
-            if (plant.Directionality == 'Mono'):
-                plt.step(time['Inputs'],np.array(v_opt['Inputs',:,plant.label,'Power']),where = 'post')
-                #if (key == 'Wind'):
-                #    CPmax = self.Plants['Wind'][0]['CPmax']
-                #    A     = self.Plants['Wind'][0]['A']
-                #    PWind = 0.5*rho_air*A*CPmax*np.array(v_opt['States',:,'Wind','WindSpeed'])**3                
-                #    plt.step(time['States'],PWind,color='k',where = 'post')
-                #    plt.hlines(self.Plants['Wind'][0]['Pmax'], time['States'][0], time['States'][-1], colors='r', linestyles='dashed')
-            else:
-                plt.step(time['Inputs'],np.array(v_opt['Inputs',:,plant.label,'Pdischarge'])-np.array(v_opt['Inputs',:,plant.label,'Pcharge']),where = 'post') 
+        SaveFig(Path,'Lines')
 
-     
-            fig += 1
-        
-        
-        
 
         
-        plt.figure(5)
-        plt.hold('on')
+        #plt.figure(5)
+        #plt.hold('on')
+        #
+        #for key in self.SolutionInfo['TotalPower'].keys():
+        #    plt.step(time['Inputs'],self.SolutionInfo['TotalPower'][key],where = 'post', label = key)
+        #    #if (key == 'Wind'):
+        #    #    CPmax = self.Plants['Wind'][0]['CPmax']
+        #    #    A     = self.Plants['Wind'][0]['A']
+        #    #    PWind = 0.5*rho_air*A*CPmax*np.array(v_opt['States',:,'Wind','WindSpeed'])**3                
+        #    #    #plt.step(time['States'],PWind,color='k',where = 'post', label = 'Available wind', linestyle = ':')
+        #    #    plt.plot(time['States'][1:],PWind[:-1],color='k', drawstyle = 'steps', label = 'Available wind', linestyle = ':')
+        #    #    plt.hlines(self.Plants['Wind'][0]['Pmax'], time['States'][0], time['States'][-1], colors='r', linestyle='dashed', label = 'Rated Wind Pow.')
+        #
+        #plt.legend(bbox_to_anchor=(1, 1), loc=2, borderaxespad=0.)
+        #
+        #
+        #plt.title('Load Power (black) & Total injected power (red)')
+        #        
         
-        for key in self.SolutionInfo['TotalPower'].keys():
-            plt.step(time['Inputs'],self.SolutionInfo['TotalPower'][key],where = 'post', label = key)
-            #if (key == 'Wind'):
-            #    CPmax = self.Plants['Wind'][0]['CPmax']
-            #    A     = self.Plants['Wind'][0]['A']
-            #    PWind = 0.5*rho_air*A*CPmax*np.array(v_opt['States',:,'Wind','WindSpeed'])**3                
-            #    #plt.step(time['States'],PWind,color='k',where = 'post', label = 'Available wind', linestyle = ':')
-            #    plt.plot(time['States'][1:],PWind[:-1],color='k', drawstyle = 'steps', label = 'Available wind', linestyle = ':')
-            #    plt.hlines(self.Plants['Wind'][0]['Pmax'], time['States'][0], time['States'][-1], colors='r', linestyle='dashed', label = 'Rated Wind Pow.')
-
-        plt.legend(bbox_to_anchor=(1, 1), loc=2, borderaxespad=0.)
-        
-        
-        plt.title('Load Power (black) & Total injected power (red)')
-                
-        
-        plt.figure(6)
-        fig = 1
-        for plant in self.PlantList:            
-            plt.subplot(SizeSubpltAll,SizeSubpltAll,fig)
-            plt.step(time['Inputs'],self.SolutionInfo['PlantCosPhi'][plant.label][0], color = 'k')
-            fig += 1
-            plt.ylabel('cos(phi)')
-            plt.title(key+', bus '+str(plant.Bus))
+        #plt.figure(6)
+        #fig = 1
+        #for plant in self.PlantList:            
+        #    plt.subplot(SizeSubpltAll,SizeSubpltAll,fig)
+        #    plt.step(time['Inputs'],self.SolutionInfo['PlantCosPhi'][plant.label][0], color = 'k')
+        #    fig += 1
+        #    plt.ylabel('cos(phi)')
+        #    plt.title(key+', bus '+str(plant.Bus))
                 
         plt.figure(7)
         fig = 1
@@ -1195,11 +1178,13 @@ class PowerGrid:
             plt.step(time['Inputs'],self.SolutionInfo['PlantActivePower'][plant.label][0], color = 'k', label = 'Act. Power')
             plt.step(time['Inputs'],self.SolutionInfo['PlantReactivePower'][plant.label][0], color = 'r', label = 'React. Power')
             fig += 1
-            plt.title(key+', bus '+str(plant.Bus))
+            plt.title(str(plant.label)+', bus '+str(plant.Bus))
                 
-        plt.subplot(2,3,5)
+        #plt.subplot(2,3,5)
         plt.legend(bbox_to_anchor=(1, 1), loc=2, borderaxespad=0.)
         
+        SaveFig(Path,'BusPower')
+
         
         plt.figure(8)
         plt.hold('on')
@@ -1217,40 +1202,60 @@ class PowerGrid:
             if len(Power)>0:
                 plt.step(time['Inputs'],Power, label = plant.label,where = 'post')
         plt.legend(bbox_to_anchor=(1, 1), loc=2, borderaxespad=0.)
+        plt.title('Plant power')
         
+        SaveFig(Path,'PlantPower')
+
+
+        #Plant Detail
         fig = 9
         for plant in PlantList:
             if hasattr(plant,'_additionalInputs') or hasattr(plant,'_Shoot'):
                 plt.figure(fig)
                 plt.title(plant.label)
-                subPltNum = 0
+                subPltNum = 2
                 if hasattr(plant,'_additionalInputs'):
                     subPltNum += len(plant._additionalInputs)
                 if hasattr(plant,'_Shoot'):
                     subPltNum += len(plant.States.keys())
-                subPltNum = np.ceil(subPltNum)
+                subPltNum = np.ceil(sqrt(subPltNum))
             
-                subplt = 0
-                if hasattr(plant,'_additionalInputs'):
-                     for key in plant._additionalInputs:
-                         print plant.label
-                         print key
-                         subplt += 1
-                         plt.subplot(subPltNum,subPltNum,subplt)
-                         plt.step(time['Inputs'],np.array(v_opt['Inputs',:,plant.label,key]),where = 'post',label = key) 
-     
-                if hasattr(plant,'_Shoot'):
-                     for key in plant.States.keys():
-                         subplt += 1
-                         plt.subplot(subPltNum,subPltNum,subplt)
+                #Plot current
+                plt.subplot(subPltNum,subPltNum,0)
+                plt.step(time['Inputs'],np.array(v_opt['Inputs',:,plant.label,'CurrentReal']),where = 'post',label = 'Real Current')
+                plt.step(time['Inputs'],np.array(v_opt['Inputs',:,plant.label,'CurrentImag']),where = 'post',label = 'Complex Current')
+                plt.title('Current')
+                plt.legend()
                 
-                         plt.plot(time['States'],np.array(v_opt['States',:,plant.label,key]),label = key) 
-       
+                plt.subplot(subPltNum,subPltNum,1)
+                plt.title('Power')
+                if plant.Directionality == 'Mono':
+                    plt.step(time['Inputs'],np.array(v_opt['Inputs',:,plant.label,'Power']),where = 'post',label = 'Power') 
+                else:
+                    plt.step(time['Inputs'],np.array(v_opt['Inputs',:,plant.label,   'Pcharge']),where = 'post',label = 'Pcharge')
+                    plt.step(time['Inputs'],np.array(v_opt['Inputs',:,plant.label,'Pdischarge']),where = 'post',label = 'Pdischarge')
+                plt.legend()    
+                    
+                subplt = 2                
+                if hasattr(plant,'_additionalInputs'):
+                    for key in plant._additionalInputs:
+                        subplt += 1
+                        plt.subplot(subPltNum,subPltNum,subplt)
+                        plt.step(time['Inputs'],np.array(v_opt['Inputs',:,plant.label,key]),where = 'post',label = key) 
+                        plt.legend()
+                        
+                if hasattr(plant,'_Shoot'):
+                    for key in plant.States.keys():
+                        subplt += 1
+                        plt.subplot(subPltNum,subPltNum,subplt)
+                
+                        plt.plot(time['States'],np.array(v_opt['States',:,plant.label,key]),label = key) 
+                        plt.legend()#bbox_to_anchor=(1, 1), loc=2, borderaxespad=0.)
                 fig += 1
-                plt.legend(bbox_to_anchor=(1, 1), loc=2, borderaxespad=0.)
+                
                 
         plt.show()  
-
+        return SavedFigs
     
     def DYNSolvePlotCompare(self, v_opt, NMPC = 'False', label = '', marker = '', linewidth = 1):
     
