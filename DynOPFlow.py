@@ -559,16 +559,7 @@ class PowerGrid:
             
             self.Vstore = Vstore()
             
-  
-         
-        ###     V reading scheme: 
-        ###
-        ### V[             'BusVoltage'  / 'States'  /  'Inputs'    ,
-        ###                                 time                                     ,
-        ###                             Plant label  ,
-        ###                           State or Input identifier                      ,
-        ###         if identifier = 'Current', then 'Real' / 'Imag'                  ]
-                
+                  
         ###############################     BUILD COST AND CONSTRAINTS         ###############################
         
         Cost = self.__CostConstructor__(V, EP, Nstage, GridLoss)
@@ -594,9 +585,8 @@ class PowerGrid:
         ThermalConst    = []
         ThermalConstExt = []
        
-        #dt = self.TimeSetup['dt']
+
         
-    
         #########    BUILD COST & CONSTRAINTS    #######
         for k in range(Nstage): #k is reserved for time instant throughout the code
             
@@ -681,9 +671,9 @@ class PowerGrid:
 
         
         ####  PERIODIC CONSTRAINTS
-        PeriodicConst.append(V['States',-1,'Storage','Energy']    - V['States',0,'Storage','Energy'])
-        PeriodicConst.append(V['States',-1,'Hydro','WaterHeight'] - V['States',0,'Hydro','WaterHeight'])
-        PeriodicConst.append(V['Inputs',-1,'Thermal','Power']     - V['Inputs',0,'Thermal','Power'])
+        #PeriodicConst.append(V['States',-1,'Storage','Energy']    - V['States',0,'Storage','Energy'])
+        #PeriodicConst.append(V['States',-1,'Hydro','WaterHeight'] - V['States',0,'Hydro','WaterHeight'])
+        #PeriodicConst.append(V['Inputs',-1,'Thermal','Power']     - V['Inputs',0,'Thermal','Power'])
 
         
         ######## END CONSTRAINTS BUILDING ######
@@ -1050,7 +1040,7 @@ class PowerGrid:
     #### RESULT PLOTTING #####
     
 
-    def DYNSolvePlot(self, v_opt, NMPC = 'False', dt = 1, Path = []):
+    def DYNSolvePlot(self, v_opt, NMPC = 'False', dt = 1, Path = [], LW = 1):
         
         SavedFigs = []
         
@@ -1092,7 +1082,7 @@ class PowerGrid:
         plt.subplot(2,3,1)
         plt.hold('on')
         for k in range(NBus):
-            plt.step(time['Inputs'],self.SolutionInfo['BusVoltagesModule'][:,k],where = 'post', label = str(k))
+            plt.step(time['Inputs'],self.SolutionInfo['BusVoltagesModule'][:,k],where = 'post', label = str(k), linewidth = LW)
         plt.ylabel('kV')
         #plt.xlabel('time (s)')
         plt.title("Voltages, |.|")
@@ -1100,7 +1090,7 @@ class PowerGrid:
         plt.subplot(2,3,2)
         plt.hold('on')
         for k in range(NBus):
-            plt.step(time['Inputs'],self.SolutionInfo['BusVoltagesAngle'][:,k],where = 'post', label = str(k))
+            plt.step(time['Inputs'],self.SolutionInfo['BusVoltagesAngle'][:,k],where = 'post', label = str(k), linewidth = LW)
         plt.ylabel('deg')
         #plt.xlabel('time (s)')
         plt.title("Voltage, angle")
@@ -1108,7 +1098,7 @@ class PowerGrid:
         plt.subplot(2,3,5)
         plt.hold('on')
         for k in range(NBus):
-            plt.step(time['Inputs'],1e-3*self.SolutionInfo['BusActivePower'][:,k],where = 'post', label = str(k))
+            plt.step(time['Inputs'],1e-3*self.SolutionInfo['BusActivePower'][:,k],where = 'post', label = str(k), linewidth = LW)
         plt.ylabel('GW')
         plt.xlabel('time (s)')
         plt.title("Active power")
@@ -1117,7 +1107,7 @@ class PowerGrid:
         plt.subplot(2,3,4)
         plt.hold('on')
         for k in range(NBus):
-            plt.step(time['Inputs'],1e-3*self.SolutionInfo['BusReactivePower'][:,k],where = 'post', label = str(k))
+            plt.step(time['Inputs'],1e-3*self.SolutionInfo['BusReactivePower'][:,k],where = 'post', label = str(k), linewidth = LW)
         plt.ylabel('GW')
         plt.xlabel('time (s)')
         plt.title("Reactive power")
@@ -1125,7 +1115,7 @@ class PowerGrid:
         plt.subplot(2,3,3)
         plt.hold('on')
         for k in range(NBus):
-            plt.step(time['Inputs'],self.SolutionInfo['BusCurrentModule'][:,k],where = 'post', label = str(k))
+            plt.step(time['Inputs'],self.SolutionInfo['BusCurrentModule'][:,k],where = 'post', label = str(k), linewidth = LW)
         plt.ylabel('kA')
         plt.xlabel('time (s)')
         plt.title('Current, |.|')
@@ -1137,7 +1127,7 @@ class PowerGrid:
                 
         plt.figure(2)
         for k in range(NLine):
-            plt.step(time['Inputs'],self.SolutionInfo['LineCurrentsModule'][k,:],where = 'post', label = str(self.Graph[k][0])+'-'+str(self.Graph[k][1]))
+            plt.step(time['Inputs'],self.SolutionInfo['LineCurrentsModule'][k,:],where = 'post', label = str(self.Graph[k][0])+'-'+str(self.Graph[k][1]), linewidth = LW)
         
         plt.xlabel('time (s)')
         plt.ylabel('kA')
@@ -1151,8 +1141,8 @@ class PowerGrid:
         fig = 1
         for plant in self.PlantList:            
             plt.subplot(SizeSubpltAll,SizeSubpltAll,fig)
-            plt.step(time['Inputs'],1e-3*self.SolutionInfo['PlantActivePower'][plant.label][0], color = 'k', label = 'Act. Power')
-            plt.step(time['Inputs'],1e-3*self.SolutionInfo['PlantReactivePower'][plant.label][0], color = 'r', label = 'React. Power')
+            plt.step(time['Inputs'],1e-3*self.SolutionInfo['PlantActivePower'][plant.label][0], color = 'k', label = 'Act. Power', linewidth = LW)
+            plt.step(time['Inputs'],1e-3*self.SolutionInfo['PlantReactivePower'][plant.label][0], color = 'r', label = 'React. Power', linewidth = LW)
             fig += 1
             plt.ylabel('GW')
             plt.xlabel('time (s)')
@@ -1177,17 +1167,48 @@ class PowerGrid:
                 print "Warning: plant power unidentified, not plotting"
             
             if len(Power)>0:
-                plt.step(time['Inputs'],1e-3*np.array(Power), label = plant.label,where = 'post')
+                plt.step(time['Inputs'],1e-3*np.array(Power), label = plant.label,where = 'post', linewidth = LW)
         plt.legend(bbox_to_anchor=(1, 1), loc=2, borderaxespad=0.)
         plt.xlabel('time (s)')
         plt.ylabel('GW')
         plt.title('Plant power')
         
         SaveFig(Path,'PlantPower')
+ 
+        
+
+        plt.figure(9)
+        plt.step(time['Inputs'],100*self.SolutionInfo['TotalPower']['Load']/self.SolutionInfo['TotalPower']['Injected'], label = plant.label,where = 'post', color = 'k', linewidth = LW)
+        plt.xlabel('time (s)')
+        plt.ylabel('%')
+        plt.title('Transmission efficiency')
+        
+        SaveFig(Path,'GridEfficiency')
+
+        
+        plt.figure(10)
+        fig = 0
+        Nsubplot = 0
+        UnitDic = {'h': 'm', 'W': 'm/s','E': 'MJ'}
+        for plant in PlantList:
+            if hasattr(plant,'_Shoot'):
+                Nsubplot += len(plant.States.keys())
+        Nsubplot = ceil(sqrt(Nsubplot))
+        for plant in PlantList:
+            if hasattr(plant,'_Shoot'):
+                for key in plant.States.keys():
+                    plt.subplot(Nsubplot,Nsubplot,fig)
+                    plt.step(time['States'],np.array(v_opt['States',:,plant.label,key]),color = 'k', linewidth = LW)
+                    plt.title(plant.label+', state: '+key)
+                    plt.xlabel('time (s)')
+                    plt.ylabel(UnitDic[key])
+                    fig += 1
+                    
+        SaveFig(Path,'PlantStates')
 
 
         #Plant Detail
-        fig = 9
+        fig = 11
         for plant in PlantList:
             if hasattr(plant,'_additionalInputs') or hasattr(plant,'_Shoot'):
                 plt.figure(fig)

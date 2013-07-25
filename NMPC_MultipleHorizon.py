@@ -41,10 +41,10 @@ Net.PowerFlowBounds = {
 
 
 dt = 1.
-Nsimulation = int(10*24)
+Nsimulation = int(5*24)
 
 #####  Define Hydro Plant #####
-Hydro = Plant(States = ['WaterHeight'], Inputs = ['qflow'], R = 0.1, Directionality = 'Bi', Bus = 4, label = 'Hydro')
+Hydro = Plant(States = ['h'], Inputs = ['qflow'], R = 0.1, Directionality = 'Bi', Bus = 4, label = 'Hydro')
 
 etaT      =  1.25
 etaP      =  0.75
@@ -56,7 +56,7 @@ qTurbmax  =  2*6e-4
 qflow     =  Hydro.Inputs['qflow']
 PPump     =  Hydro.Inputs['Pcharge']
 PTurb     =  Hydro.Inputs['Pdischarge']
-h         =  Hydro.States['WaterHeight']
+h         =  Hydro.States['h']
 
 dh = (etaP*PPump - etaT*PTurb)/(rho_water*gravity*A*h) + qflow/A 
 Const = [etaT*PTurb - qTurbmax*rho_water*gravity*h]
@@ -68,10 +68,8 @@ Hydro.setCost         (  Cost                 )
 
 Hydro.addPlant(Net)
 
-Hydro.LB['States','WaterHeight'] = 5.
-Hydro.UB['States','WaterHeight'] = 20.
-Hydro.LB['Inputs','Pcharge']     = 0.
-Hydro.LB['Inputs','Pdischarge']  = 0.
+Hydro.LB['States','h'] = 5.
+Hydro.UB['States','h'] = 20.
 Hydro.UB['Inputs','Pcharge']     = 500.
 Hydro.UB['Inputs','Pdischarge']  = 1000.
 
@@ -80,16 +78,16 @@ Hydro.UB['Inputs','qflow']  = 6e-4
 
 
 #####   Define Storage   #####  
-Storage = Plant(States = ['Energy'], R = 0.1,  Directionality = 'Bi', Bus = 1, label = 'Storage')
+Storage = Plant(States = ['E'], R = 0.1,  Directionality = 'Bi', Bus = 1, label = 'Storage')
 etaC       = 0.9
 etaD       = 1.1
 tau        = 1e-6
 Pcharge    = Storage.Inputs['Pcharge']
 Pdischarge = Storage.Inputs['Pdischarge']
-E          = Storage.States['Energy']
+E          = Storage.States['E']
 
-dEnergy = etaC*Pcharge - etaD*Pdischarge - tau*E
-Storage.setDynamics( RHS = dEnergy, dt = dt )
+dE = etaC*Pcharge - etaD*Pdischarge - tau*E
+Storage.setDynamics( RHS = dE, dt = dt )
 
 
 Cost = (etaD - 1)*Pdischarge + (1 - etaC)*Pcharge + Pcharge*Pdischarge
@@ -97,10 +95,8 @@ Storage.setCost(Cost)
 
 Storage.addPlant(Net)
 
-Storage.LB['States','Energy']      = 0.
-Storage.UB['States','Energy']      = 2e3
-Storage.LB['Inputs','Pcharge']     = 0.
-Storage.LB['Inputs','Pdischarge']  = 0.
+Storage.LB['States','E']      = 0.
+Storage.UB['States','E']      = 2e3
 Storage.UB['Inputs','Pcharge']     = 250.
 Storage.UB['Inputs','Pdischarge']  = 500.
 
@@ -112,28 +108,27 @@ A             = 2*Prated/(rho_air*0.47*Wrated**3)
 CPmax         = .47
 WindCurt      = 22
 Tau           = 0.0
-WindSpeedMean = 10.
+WMean = 10.
 
-Wind          = Plant(States = ['WindSpeed'], Inputs = ['dWindSpeed'], R = 0.1, Bus = 5, label = 'Wind')
+Wind          = Plant(States = ['W'], Inputs = ['dW'], R = 0.1, Bus = 5, label = 'Wind')
 
 #Wind availaibility
-PWind         = 0.5*rho_air*A*CPmax*Wind.States['WindSpeed']**3
+PWind         = 0.5*rho_air*A*CPmax*Wind.States['W']**3
 
 Const = []
 Const.append(Wind.Inputs['Power'] - PWind)
-Const.append(Wind.Inputs['Power']*(Wind.States['WindSpeed']-WindCurt)/WindCurt/Prated - 1e-3)
+Const.append(Wind.Inputs['Power']*(Wind.States['W']-WindCurt)/WindCurt/Prated - 1e-3)
 Wind.setConstraints(Const)
 
 #Wind random walk
-dWind         = Wind.Inputs['dWindSpeed'] - Tau*(Wind.States['WindSpeed'] - WindSpeedMean)
+dWind         = Wind.Inputs['dW'] - Tau*(Wind.States['W'] - WMean)
 Wind.setDynamics( RHS = dWind, dt = dt)
             
 Wind.addPlant(Net)
 
-Wind.LB['Inputs','Power']      = 0
 Wind.UB['Inputs','Power']      = Prated
-Wind.LB['Inputs','dWindSpeed'] = 0
-Wind.UB['Inputs','dWindSpeed'] = 0
+#Wind.LB['Inputs','dW'] = 0
+#Wind.UB['Inputs','dW'] = 0
 
 #####   Thermal   #####
 Thermal = Plant(Bus = 2, R = 0.1, label = 'Thermal')
@@ -142,7 +137,6 @@ Thermal.setCost(Cost)
 
 Thermal.addPlant(Net)
 
-Thermal.LB['Inputs','Power'] = 0
 Thermal.UB['Inputs','Power'] = 1000
 
 #####   Load      ######
@@ -155,7 +149,7 @@ Load.UB['Inputs','ReactivePower'] =  -750
 
 #################    END OF NETWORK DEFINITION    ###########################
 
-HorizonSetup = {'Min' : 6, 'Max' : 60, 'Step': 3}
+HorizonSetup = {'Min' : 12, 'Max' : 48, 'Step': 12}
 
 Net.Profiles(N = HorizonSetup['Max'] + Nsimulation)
 ##### Set PROFILES #####
@@ -165,11 +159,10 @@ Net.LBInputProfiles['Hydro',:,'qflow'] = 6e-4
 Net.UBInputProfiles['Hydro',:,'qflow'] = 6e-4
 
 dWind = [rand.normalvariate(0,0.0) for k in range(Nprofile)]
-Net.LBInputProfiles['Wind',:,'dWindSpeed']   = dWind
-Net.UBInputProfiles['Wind',:,'dWindSpeed']   = dWind
+Net.LBInputProfiles['Wind',:,'dW']   = dWind
+Net.UBInputProfiles['Wind',:,'dW']   = dWind
 
 LoadMean = [-300*np.cos(2*np.pi*k*dt/24.) + 1000  for k in range(Nprofile)]
-#LoadMean = [0*np.cos(2*np.pi*k*dt/24.) + 1000  for k in range(Nprofile)]
 LoadStd  =  0.0
 
 LoadActivePower   = [min(0,rand.normalvariate(-LoadMean[k],LoadStd)) for k in range(Nprofile)]
@@ -192,15 +185,15 @@ while Horizon < HorizonSetup['Max']:
                        u0 = Net.u0()
                        x0 = Net.x0()
                        
-                       u0['Thermal','Power']         = 0.
-                       x0['Wind',   'WindSpeed']     = 9.5
-                       x0['Storage','Energy']        = 0.9*2e3
-                       x0['Hydro',  'WaterHeight']   = 0.9*20
+                       u0['Thermal','Power'] = 0.
+                       x0['Wind',   'W']     = 9.5
+                       x0['Storage','E']     = 0.9*2e3
+                       x0['Hydro',  'h']     = 0.9*20
                        
                        #Make initial guess
                        init = Net.init()
                        
-                       init['States',:,'Wind','WindSpeed'] = 10.  
+                       init['States',:,'Wind','W'] = 10.  
                        
                        #Solve initial guess
                        NMPC = {'time': 0}

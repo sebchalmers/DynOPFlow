@@ -39,23 +39,25 @@ dt = 1.
 
 
 #####  Define Hydro Plant #####
-Hydro = Plant(States = ['WaterHeight'], Inputs = ['qflow'], R = 0.1, Directionality = 'Bi', Bus = 4, label = 'Hydro')
+Hydro = Plant(States = ['h'], Inputs = ['qflow'], R = 0.1, Directionality = 'Bi', Bus = 4, label = 'Hydro')
 
-etaT      =  0.8#1.25
-etaP      =  0.75
-A         =  1e-3
-rho_air   =  1.2
-rho_water =  1e3
-gravity   =  9.81
-qTurbmax  =  2*6e-4   
-qflow     =  Hydro.Inputs['qflow']
-PPump     =  Hydro.Inputs['Pcharge']
-PTurb     =  Hydro.Inputs['Pdischarge']
-h         =  Hydro.States['WaterHeight']
+etaT       =  0.8#1.25
+etaP       =  0.75
+A          =  1e-3
+rho_air    =  1.2
+rho_water  =  1e3
+gravity    =  9.81
+qTurbmax   =  2*6e-4   
+qflow      =  Hydro.Inputs['qflow']
+PP         =  Hydro.Inputs['Pcharge']
+PT         =  Hydro.Inputs['Pdischarge']
+PP_prev    =  Hydro.InputsPrev['Pcharge']
+PT_prev    =  Hydro.InputsPrev['Pdischarge']
+h          =  Hydro.States['h']
 
-dh = (etaP*PPump - PTurb/etaT)/(rho_water*gravity*A*h) + qflow/A 
-Const = [PTurb/etaT - qTurbmax*rho_water*gravity*h]
-Cost = (1/etaT - 1)*PTurb + (1 - etaP)*PPump 
+dh = (etaP*PP - PT/etaT)/(rho_water*gravity*A*h) + qflow/A 
+Const = [PT/etaT - qTurbmax*rho_water*gravity*h]
+Cost = (1/etaT - 1)*PT + (1 - etaP)*PP #+ 1e-1*(PP - PP_prev)**2  + 1e-1*(PT - PT_prev)**2
 
 Hydro.setDynamics     (  RHS = dh, dt = dt    )
 Hydro.setConstraints  (  Const                )
@@ -63,19 +65,19 @@ Hydro.setCost         (  Cost                 )
 
 Hydro.addPlant(Net)
 
-Hydro.LB['States','WaterHeight'] = 5.
-Hydro.UB['States','WaterHeight'] = 20.
+Hydro.LB['States','h'] = 5.
+Hydro.UB['States','h'] = 20.
 Hydro.UB['Inputs','Pcharge']     = 500.
 Hydro.UB['Inputs','Pdischarge']  = 1000.
 
 #####   Define Storage   #####  
-Storage = Plant(States = ['Energy'], R = 0.1,  Directionality = 'Bi', Bus = 1, label = 'Storage')
+Storage = Plant(States = ['E'], R = 0.1,  Directionality = 'Bi', Bus = 1, label = 'Storage')
 etaC       = 0.9
 etaD       = 0.95
 tau        = 1e-6
 Pcharge    = Storage.Inputs['Pcharge']
 Pdischarge = Storage.Inputs['Pdischarge']
-E          = Storage.States['Energy']
+E          = Storage.States['E']
 
 dEnergy = etaC*Pcharge - Pdischarge/etaD - tau*E
 Storage.setDynamics( RHS = dEnergy, dt = dt )
@@ -84,8 +86,8 @@ Cost = (1/etaD - 1)*Pdischarge + (1 - etaC)*Pcharge #+ Pcharge*Pdischarge
 Storage.setCost(Cost)
 Storage.addPlant(Net)
 
-Storage.LB['States','Energy']      = 0.
-Storage.UB['States','Energy']      = 2e3
+Storage.LB['States','E']      = 0.
+Storage.UB['States','E']      = 2e3
 Storage.UB['Inputs','Pcharge']     = 250.
 Storage.UB['Inputs','Pdischarge']  = 500.
 
@@ -99,17 +101,17 @@ WindCurt      = 22
 Tau           = 0.0
 WindSpeedMean = 10.
 
-Wind          = Plant(States = ['WindSpeed'], Inputs = ['dWindSpeed'], R = 0.1, Bus = 5, label = 'Wind')
-PWind         = 0.5*rho_air*A*CPmax*Wind.States['WindSpeed']**3
+Wind          = Plant(States = ['W'], Inputs = ['dW'], R = 0.1, Bus = 5, label = 'Wind')
+PWind         = 0.5*rho_air*A*CPmax*Wind.States['W']**3
 
 Const = []
 Const.append(Wind.Inputs['Power'] - PWind)
-Const.append(Wind.Inputs['Power']*(Wind.States['WindSpeed']-WindCurt)/WindCurt/Prated - 1e-3)
+Const.append(Wind.Inputs['Power']*(Wind.States['W']-WindCurt)/WindCurt/Prated - 1e-3)
 Wind.setConstraints(Const)
 
 #Wind random walk
-dWind         = Wind.Inputs['dWindSpeed'] - Tau*(Wind.States['WindSpeed'] - WindSpeedMean)
-Wind.setDynamics( RHS = dWind, dt = dt)
+dotW         = Wind.Inputs['dW'] - Tau*(Wind.States['W'] - WindSpeedMean)
+Wind.setDynamics( RHS = dotW, dt = dt)
   
 Wind.addPlant(Net)
 Wind.UB['Inputs','Power']      = Prated
@@ -148,7 +150,7 @@ Net.Profiles(Horizon + Nsimulation)
 
 Nprofile = Net.Nprofile
 
-dWind = [rand.normalvariate(0,0.2) for k in range(Nprofile)]
+dW = [rand.normalvariate(0,0.2) for k in range(Nprofile)]
 
 LoadActivePower   = [300*np.cos(2*np.pi*k*dt/24.) - 1000  for k in range(Nprofile)]
 LoadReactivePower = [0.75*LoadActivePower[k] for k in range(Nprofile)]
@@ -159,22 +161,22 @@ Net.Dispatch(Horizon = Horizon, Simulation = Nsimulation)
 u0 = Net.u0()
 x0 = Net.x0()
 
-u0['Thermal','Power']         = 0.
-x0['Wind',   'WindSpeed']     = 9.25
-x0['Storage','Energy']        = 0.9*2e3
-x0['Hydro',  'WaterHeight']   = 0.9*20
+u0['Thermal','Power']  = 0.
+x0['Wind',   'W']      = 9.25
+x0['Storage','E']      = 0.9*2e3
+x0['Hydro',  'h']      = 0.9*20
 
 #Make initial guess
 init = Net.init()
 
-init['States',:,'Wind','WindSpeed'] = x0['Wind',   'WindSpeed'] 
+init['States',:,'Wind','W'] = x0['Wind',   'W'] 
  
 Net.LBInputProfiles['Hydro',:,'qflow'] = 6e-4
 Net.UBInputProfiles['Hydro',:,'qflow'] = 6e-4
 
 
-Net.LBInputProfiles['Wind',:,'dWindSpeed']   = dWind                                                                  
-Net.UBInputProfiles['Wind',:,'dWindSpeed']   = dWind     
+Net.LBInputProfiles['Wind',:,'dW']   = dW                                                                 
+Net.UBInputProfiles['Wind',:,'dW']   = dW   
                
 Net.LBInputProfiles['Load',:,'ActivePower']   = LoadActivePower
 Net.LBInputProfiles['Load',:,'ReactivePower'] = LoadReactivePower
@@ -186,25 +188,12 @@ Traj, NMPC_Info = Net.NMPCSimulation(x0 = x0, u0 = u0, init = init, Simulation =
 #Plotting
 Net.ExtractInfo(Traj, PlantPower = 'True', BusPower = 'True', TotalPower = 'True')
 
-Path = '/Users/sebastien/Desktop/Research/PowerFlowCodes/Paper/Figures'
-SavedFigs = Net.DYNSolvePlot(Traj, dt = 1/24., Path = Path)          
+Path = '/Users/sebastien/Desktop/Research/PowerFlowCodes/Paper/Figures/Simulations/Sim5'
+SavedFigs = Net.DYNSolvePlot(Traj, dt = 1/24., Path = Path, LW = 2)          
 
 
-## Create & save the figures for the paper
-#plt.savefig('/Users/sebastien/Desktop/Research/PowerFlowCodes/Paper/Figures/Simultation.eps',format='eps')
-#plt.close()
+## Create additional figures for the paper
+
     
     
-#plt.figure(2,figsize=(11.0, 5.0))
-#NLine     =  len(    Net.Graph   )
-#time = {}
-#for key in ['States','Inputs']:
-#    time[key] = np.array([k*dt for k in range(len(Traj[key]))]).T
-#
-#for k in range(NLine):
-#    plt.step(time['Inputs'],Net.SolutionInfo['LineCurrentsModule'][k,:],where = 'post', label = str(Net.Graph[k][0])+'-'+str(Net.Graph[k][1]))
-#
-#plt.title("Lines current |.| (kA)")
-#plt.legend(bbox_to_anchor=(1, 1), loc=2, borderaxespad=0.)
-#plt.savefig('Lines'+'.eps',format='eps', facecolor='w', edgecolor='k',bbox_inches='tight')
-#plt.close()    
+ 
