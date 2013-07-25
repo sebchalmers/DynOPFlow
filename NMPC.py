@@ -164,6 +164,13 @@ Load.LB['Inputs','ReactivePower'] =  -750
 Load.UB['Inputs',  'ActivePower'] = -1000
 Load.UB['Inputs','ReactivePower'] =  -750
 
+# Impose current bounds on all plants
+for plant in Net.PlantList:
+    plant.UB['Inputs','CurrentReal'] =  5.
+    plant.LB['Inputs','CurrentReal'] = -5.
+    plant.UB['Inputs','CurrentImag'] =  5.
+    plant.LB['Inputs','CurrentImag'] = -5.
+
 #################    END OF NETWORK DEFINITION    ###########################
 
 Horizon    = 48

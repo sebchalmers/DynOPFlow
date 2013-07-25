@@ -70,10 +70,7 @@ Hydro.UB['States','h'] = 20.
 Hydro.UB['Inputs','Pcharge']     = 500.
 Hydro.UB['Inputs','Pdischarge']  = 1000.
 
-Hydro.UB['Inputs','CurrentReal'] =  5.
-Hydro.LB['Inputs','CurrentReal'] = -5.
-Hydro.UB['Inputs','CurrentImag'] =  5.
-Hydro.LB['Inputs','CurrentImag'] = -5.
+
 
 #####   Define Storage   #####  
 Storage = Plant(States = ['E'], R = 0.1,  Directionality = 'Bi', Bus = 1, label = 'Storage')
@@ -96,10 +93,7 @@ Storage.UB['States','E']      = 2e3
 Storage.UB['Inputs','Pcharge']     = 250.
 Storage.UB['Inputs','Pdischarge']  = 500.
 
-Storage.UB['Inputs','CurrentReal'] =  5.
-Storage.LB['Inputs','CurrentReal'] = -5.
-Storage.UB['Inputs','CurrentImag'] =  5.
-Storage.LB['Inputs','CurrentImag'] = -5.
+
 
 #####  Define wind farm  #####  
 Prated        = 1100 #Total rated power 
@@ -126,10 +120,6 @@ Wind.setDynamics( RHS = dotW, dt = dt)
 Wind.addPlant(Net)
 Wind.UB['Inputs','Power']      = Prated
 
-Wind.UB['Inputs','CurrentReal'] =  5.
-Wind.LB['Inputs','CurrentReal'] = -5.
-Wind.UB['Inputs','CurrentImag'] =  5.
-Wind.LB['Inputs','CurrentImag'] = -5.
 
 #####   Thermal   #####
 ThermalRamp       = 200. 
@@ -147,10 +137,6 @@ Thermal.setConstraints(Const)
 Thermal.addPlant(Net)
 
 Thermal.UB['Inputs','Power'] = 1000
-Thermal.UB['Inputs','CurrentReal'] =  5.
-Thermal.LB['Inputs','CurrentReal'] = -5.
-Thermal.UB['Inputs','CurrentImag'] =  5.
-Thermal.LB['Inputs','CurrentImag'] = -5.
 
 #####   Load      ######
 Load = Plant(Load = True, Bus = 0, label = 'Load')
@@ -160,10 +146,12 @@ Load.LB['Inputs','ReactivePower'] =  -750
 Load.UB['Inputs',  'ActivePower'] = -1000
 Load.UB['Inputs','ReactivePower'] =  -750
 
-Load.UB['Inputs','CurrentReal'] =  5.
-Load.LB['Inputs','CurrentReal'] = -5.
-Load.UB['Inputs','CurrentImag'] =  5.
-Load.LB['Inputs','CurrentImag'] = -5.
+# Impose current bounds on all plants
+for plant in Net.PlantList:
+    plant.UB['Inputs','CurrentReal'] =  5.
+    plant.LB['Inputs','CurrentReal'] = -5.
+    plant.UB['Inputs','CurrentImag'] =  5.
+    plant.LB['Inputs','CurrentImag'] = -5.
 
 #################    END OF NETWORK DEFINITION    ###########################
 
