@@ -29,7 +29,7 @@ Net = PowerGrid(NBus,Graph)
 Net.Flow()
 
 Net.PowerFlowBounds = {
-                       'Vmin' :           [0.0 for k in range(NBus)],
+                       'Vmin' :           [450.0 for k in range(NBus)],
                        'Vmax' :           [500.0 for k in range(NBus)],
                        'LineCurrentMax' : [50.0 for k in range(5)    ]
                       }
@@ -70,6 +70,11 @@ Hydro.UB['States','h'] = 20.
 Hydro.UB['Inputs','Pcharge']     = 500.
 Hydro.UB['Inputs','Pdischarge']  = 1000.
 
+Hydro.UB['Inputs','CurrentReal'] =  5.
+Hydro.LB['Inputs','CurrentReal'] = -5.
+Hydro.UB['Inputs','CurrentImag'] =  5.
+Hydro.LB['Inputs','CurrentImag'] = -5.
+
 #####   Define Storage   #####  
 Storage = Plant(States = ['E'], R = 0.1,  Directionality = 'Bi', Bus = 1, label = 'Storage')
 etaC       = 0.9
@@ -90,6 +95,11 @@ Storage.LB['States','E']      = 0.
 Storage.UB['States','E']      = 2e3
 Storage.UB['Inputs','Pcharge']     = 250.
 Storage.UB['Inputs','Pdischarge']  = 500.
+
+Storage.UB['Inputs','CurrentReal'] =  5.
+Storage.LB['Inputs','CurrentReal'] = -5.
+Storage.UB['Inputs','CurrentImag'] =  5.
+Storage.LB['Inputs','CurrentImag'] = -5.
 
 #####  Define wind farm  #####  
 Prated        = 1100 #Total rated power 
@@ -116,6 +126,11 @@ Wind.setDynamics( RHS = dotW, dt = dt)
 Wind.addPlant(Net)
 Wind.UB['Inputs','Power']      = Prated
 
+Wind.UB['Inputs','CurrentReal'] =  5.
+Wind.LB['Inputs','CurrentReal'] = -5.
+Wind.UB['Inputs','CurrentImag'] =  5.
+Wind.LB['Inputs','CurrentImag'] = -5.
+
 #####   Thermal   #####
 ThermalRamp       = 200. 
 Thermal           = Plant(Bus = 2, R = 0.1, label = 'Thermal')
@@ -132,14 +147,23 @@ Thermal.setConstraints(Const)
 Thermal.addPlant(Net)
 
 Thermal.UB['Inputs','Power'] = 1000
+Thermal.UB['Inputs','CurrentReal'] =  5.
+Thermal.LB['Inputs','CurrentReal'] = -5.
+Thermal.UB['Inputs','CurrentImag'] =  5.
+Thermal.LB['Inputs','CurrentImag'] = -5.
 
 #####   Load      ######
-Load = Plant(Load = 'True', Bus = 0, label = 'Load')
+Load = Plant(Load = True, Bus = 0, label = 'Load')
 Load.addPlant(Net)
 Load.LB['Inputs',  'ActivePower'] = -1000
 Load.LB['Inputs','ReactivePower'] =  -750
 Load.UB['Inputs',  'ActivePower'] = -1000
 Load.UB['Inputs','ReactivePower'] =  -750
+
+Load.UB['Inputs','CurrentReal'] =  5.
+Load.LB['Inputs','CurrentReal'] = -5.
+Load.UB['Inputs','CurrentImag'] =  5.
+Load.LB['Inputs','CurrentImag'] = -5.
 
 #################    END OF NETWORK DEFINITION    ###########################
 
@@ -183,10 +207,16 @@ Net.LBInputProfiles['Load',:,'ReactivePower'] = LoadReactivePower
 Net.UBInputProfiles['Load',:,'ActivePower']   = LoadActivePower
 Net.UBInputProfiles['Load',:,'ReactivePower'] = LoadReactivePower
                                               
+#Sol,_ = Net.DYNSolve(x0 = x0, u0 = u0, init = init)
+#
+#Net.ExtractInfo(Sol, PlantPower = True, BusPower = True, TotalPower = True)
+#Net.DYNSolvePlot(Sol, dt = 1)
+#
+#assert(0==1)                                             
 Traj, NMPC_Info = Net.NMPCSimulation(x0 = x0, u0 = u0, init = init, Simulation = Nsimulation) 
                        
 #Plotting
-Net.ExtractInfo(Traj, PlantPower = 'True', BusPower = 'True', TotalPower = 'True')
+Net.ExtractInfo(Traj, PlantPower = True, BusPower = True, TotalPower = True)
 
 Path = '/Users/sebastien/Desktop/Research/PowerFlowCodes/Paper/Figures/Simulations/Sim5'
 SavedFigs = Net.DYNSolvePlot(Traj, dt = 1/24., Path = Path, LW = 2)          
