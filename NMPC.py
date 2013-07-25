@@ -69,9 +69,9 @@ Hydro.setConstraints  (  Const                )
 Hydro.setCost         (  Cost                 )
 
 #TConst = (15-h)
-#Hydro.setConstraints(TConst, Terminal = 'True')
+#Hydro.setConstraints(TConst, Terminal = True)
 #TCost = -100*h
-#Hydro.setCost(TCost, Terminal = 'True')
+#Hydro.setCost(TCost, Terminal = True)
 
 Hydro.addPlant(Net)
 
@@ -157,7 +157,7 @@ Thermal.addPlant(Net)
 Thermal.UB['Inputs','Power'] = 1000
 
 #####   Load      ######
-Load = Plant(Load = 'True', Bus = 0, label = 'Load')
+Load = Plant(Load = True, Bus = 0, label = 'Load')
 Load.addPlant(Net)
 Load.LB['Inputs',  'ActivePower'] = -1000
 Load.LB['Inputs','ReactivePower'] =  -750
@@ -224,16 +224,16 @@ Net.UBInputProfiles['Load',:,'ReactivePower'] = LoadReactivePower
 Sol, stats = Net.DYNSolve(x0 = x0, u0 = u0, time = 0, init = init)
 init = Sol
 
-Net.ExtractInfo(Sol, PlantPower = 'True', BusPower = 'True', TotalPower = 'True')
-Net.DYNSolvePlot(Sol, dt = 1)
+Net.ExtractInfo(Sol, PlantPower = True, BusPower = True, TotalPower = True)
+#Net.DYNSolvePlot(Sol, dt = 1)
 
 
 Traj, NMPC_Info = Net.NMPCSimulation(x0 = x0, u0 = u0, init = init, Simulation = Nsimulation) 
                        
 
 #Exctract info
-Net.ExtractInfo(Traj, PlantPower = 'True', BusPower = 'True', TotalPower = 'True')
-Net.DYNSolvePlot(Traj, dt = 1)          
+Net.ExtractInfo(Traj, PlantPower = True, BusPower = True, TotalPower = True)
+#Net.DYNSolvePlot(Traj, dt = 1)          
 
 
 

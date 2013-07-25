@@ -140,7 +140,7 @@ Thermal.addPlant(Net)
 Thermal.UB['Inputs','Power'] = 1000
 
 #####   Load      ######
-Load = Plant(Load = 'True', Bus = 0, label = 'Load')
+Load = Plant(Load = True, Bus = 0, label = 'Load')
 Load.addPlant(Net)
 Load.LB['Inputs',  'ActivePower'] = -1000
 Load.LB['Inputs','ReactivePower'] =  -750
@@ -215,7 +215,7 @@ plt.figure(1)
 plt.plot(Horizons,Cost,linestyle = 'none',marker = 'o')
 plt.show()
 #Exctract info
-#Net.ExtractInfo(Net.Vstore, PlantPower = 'True', BusPower = 'True', TotalPower = 'True')
+#Net.ExtractInfo(Net.Vstore, PlantPower = True, BusPower = True, TotalPower = True)
 #Net.DYNSolvePlot(Net.Vstore, dt = 1)
 
 

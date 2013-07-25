@@ -32,7 +32,7 @@ Net = PowerGrid(NBus,Graph)
 
 
 
-Net.Flow(OPFSolver = 'True')
+Net.Flow(OPFSolver = True)
 
 
 

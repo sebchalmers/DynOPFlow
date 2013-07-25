@@ -164,7 +164,7 @@ Thermal.LB['Inputs','Power'] = 0
 Thermal.UB['Inputs','Power'] = 1000
 
 #####   Load      ######
-Load = Plant(Load = 'True', Bus = 0, label = 'Load')
+Load = Plant(Load = True, Bus = 0, label = 'Load')
 Load.addPlant(Net)
 Load.LB['Inputs',  'ActivePower'] = -1000
 Load.LB['Inputs','ReactivePower'] =  -750
@@ -238,7 +238,7 @@ while Horizon < HorizonSetup['Max']:
                                               Sol, stats = Net.DYNSolve(x0 = x0, u0 = u0, time = 0, init = init)
                                               init = Sol
                                               
-                                              Net.ExtractInfo(Sol, PlantPower = 'True', BusPower = 'True', TotalPower = 'True')
+                                              Net.ExtractInfo(Sol, PlantPower = True, BusPower = True, TotalPower = True)
                                               Net.DYNSolvePlot(Sol, dt = 1)
                                               assert(0==1)
                                               #####    NMPC Simulations     #####
@@ -250,7 +250,7 @@ while Horizon < HorizonSetup['Max']:
                                               else:
                                                   Results[-1]['Cost'] += NMPC_Info['Cost']/float(HorizonSetup['Nrealization'])
                                               
-                                              #Net.ExtractInfo(Traj, PlantPower = 'True', BusPower = 'True', TotalPower = 'True')
+                                              #Net.ExtractInfo(Traj, PlantPower = True, BusPower = True, TotalPower = True)
                                               #Net.DYNSolvePlot(Traj, dt = 1)
                                                                                                 
                        Horizon += HorizonSetup['Step']
