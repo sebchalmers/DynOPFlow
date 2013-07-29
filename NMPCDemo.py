@@ -63,7 +63,7 @@ Hydro.setDynamics     (  RHS = dh, dt = dt    )
 Hydro.setConstraints  (  Const                )
 Hydro.setCost         (  Cost                 )
 
-Hydro.addPlant(Net)
+Net.addPlant(Hydro)
 
 Hydro.LB['States','h'] = 5.
 Hydro.UB['States','h'] = 20.
@@ -86,7 +86,7 @@ Storage.setDynamics( RHS = dEnergy, dt = dt )
 
 Cost = (1/etaD - 1)*Pdischarge + (1 - etaC)*Pcharge #+ Pcharge*Pdischarge
 Storage.setCost(Cost)
-Storage.addPlant(Net)
+Net.addPlant(Storage)
 
 Storage.LB['States','E']      = 0.
 Storage.UB['States','E']      = 2e3
@@ -117,7 +117,7 @@ Wind.setConstraints(Const)
 dotW         = Wind.Inputs['dW'] - Tau*(Wind.States['W'] - WindSpeedMean)
 Wind.setDynamics( RHS = dotW, dt = dt)
   
-Wind.addPlant(Net)
+Net.addPlant(Wind)
 Wind.UB['Inputs','Power']      = Prated
 
 
@@ -134,13 +134,14 @@ Const =   [    ThermalPower - ThermalPower_prev - ThermalRamp  ]  # ThermalPower
 Const.append( -ThermalPower + ThermalPower_prev - ThermalRamp  )  # - ThermalRamp <= ThermalPower - ThermalPower_prev
 Thermal.setConstraints(Const)
 
-Thermal.addPlant(Net)
+Net.addPlant(Thermal)
 
 Thermal.UB['Inputs','Power'] = 1000
 
 #####   Load      ######
 Load = Plant(Load = True, Bus = 0, label = 'Load')
-Load.addPlant(Net)
+Net.addPlant(Load)
+
 Load.LB['Inputs',  'ActivePower'] = -1000
 Load.LB['Inputs','ReactivePower'] =  -750
 Load.UB['Inputs',  'ActivePower'] = -1000
@@ -204,7 +205,7 @@ Net.UBInputProfiles['Load',:,'ReactivePower'] = LoadReactivePower
 Traj, NMPC_Info = Net.NMPCSimulation(x0 = x0, u0 = u0, init = init, Simulation = Nsimulation) 
                        
 #Plotting
-Net.ExtractInfo(Traj, PlantPower = True, BusPower = True, TotalPower = True)
+Net.ExtractInfo(Traj)
 
 Path = '/Users/sebastien/Desktop/Research/PowerFlowCodes/Paper/Figures/Simulations/Sim5'
 SavedFigs = Net.DYNSolvePlot(Traj, dt = 1/24., Path = Path, LW = 2)          

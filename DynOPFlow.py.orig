@@ -487,14 +487,6 @@ class PowerGrid:
         return Cost, CostF
 
     
-    def addPlant(self, plant):
-        if (plant._frozen == True):
-            print "Plant already added to the grid, call ignored"
-            return
-        
-        self.PlantList.append(plant)
-        plant._frozen = True
-    
     def Dispatch(self, Horizon = 24, Simulation = 0, GridLoss = True):
         """
         Constructs the power dispatch problem, default Horizon length (if argument Horizon is not provided) is 24 time units
@@ -595,7 +587,6 @@ class PowerGrid:
        
 
         
-    
         #########    BUILD COST & CONSTRAINTS    #######
         for k in range(Nstage): #k is reserved for time instant throughout the code
             
@@ -808,7 +799,8 @@ class PowerGrid:
         ubg["IneqConst"] = 0.
         lbg["IneqConst"] = -inf
 
-        NBus = self.NBus
+        #Nstage = self.TimeSetup['Horizon']
+        
         NLine     =  len(    self.Graph   )
 
         ###### SETUP THE BOUNDS #########
@@ -836,14 +828,8 @@ class PowerGrid:
         ubg["BusVoltages2"]  = np.array(self.PowerFlowBounds['Vmax'])**2
         ubg["LineCurrents2"] = np.array(self.PowerFlowBounds['LineCurrentMax'])**2
         
-        #Introduce additional bounds on all current and voltages (taken from Power flow limitation)
-        # Bus voltages
-        for bus in range(NBus):
-            ubV['BusVoltages',:,'Real',bus] =  self.PowerFlowBounds['Vmax'][bus]
-            ubV['BusVoltages',:,'Imag',bus] =  self.PowerFlowBounds['Vmax'][bus]
-            lbV['BusVoltages',:,'Real',bus] = -self.PowerFlowBounds['Vmax'][bus]
-            lbV['BusVoltages',:,'Imag',bus] = -self.PowerFlowBounds['Vmax'][bus]
-          
+    
+        #Bus 0 is the reference
         ubV["BusVoltages",:,"Imag",0] = 0.
         lbV["BusVoltages",:,"Imag",0] = 0.
         
@@ -872,9 +858,6 @@ class PowerGrid:
         self.OptDispatch.setInput(EP,       "p")
         
         self.OptDispatch.solve()
-        
-        self.lbV = lbV
-        self.ubV = ubV
         
         v_opt = self.VOptDispatch(self.OptDispatch.output("x"))
         
@@ -938,7 +921,7 @@ class PowerGrid:
 
     
     #Extract results    
-    def ExtractInfo(self, v_opt, BusPower = True, PlantPower = True, TotalPower = True):
+    def ExtractInfo(self, v_opt, BusPower = False, PlantPower = False, TotalPower = False ):
         
         self.SolutionInfo = {}
         
@@ -1056,7 +1039,11 @@ class PowerGrid:
     #### RESULT PLOTTING #####
     
 
-    def DYNSolvePlot(self, v_opt, NMPC = False, dt = 1, Path = [], LW = 1, Show = True):
+<<<<<<< HEAD
+    def DYNSolvePlot(self, v_opt, NMPC = 'False', dt = 1, Path = [], LW = 1):
+=======
+    def DYNSolvePlot(self, v_opt, NMPC = False, dt = 1, Path = []):
+>>>>>>> d83774672429cb2e89a7314065042eaca3e6e793
         
         SavedFigs = []
         
@@ -1269,11 +1256,8 @@ class PowerGrid:
                         plt.legend()#bbox_to_anchor=(1, 1), loc=2, borderaxespad=0.)
                 fig += 1
                 
-        if (Show == True):        
-            plt.show()
-        else:
-            plt.close('all')
-            
+                
+        plt.show()  
         return SavedFigs
     
     def DYNSolvePlotCompare(self, v_opt, NMPC = False, label = '', marker = '', linewidth = 1):
