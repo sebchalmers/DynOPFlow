@@ -50,24 +50,9 @@ class Plant:
         self.R = R
         
         #Plant Default Input structure (list ready to be embedded in a struct_sym)
-        #RealImag      = struct_ssym([(
-        #                            entry("Real"),
-        #                            entry("Imag")
-        #                            )])
-
-        #PowerLoad     = struct_ssym([(
-        #                            entry("ActivePower"),
-        #                            entry("ReactivePower")
-        #                            )])
-
-        
-        #DirectedPower = struct_ssym([(
-        #                            entry("Charge"),
-        #                            entry("Discharge")
-        #                            )])
-        
-        InputList = [entry("CurrentReal"),
-                     entry("CurrentImag")]
+        InputList = []
+        #InputList = [entry("CurrentReal"),
+        #             entry("CurrentImag")]
         
         #Structure for INPUTS of various power plants
         if      (Load == True):
@@ -620,13 +605,16 @@ class PowerGrid:
                 BusVoltageReal = V['BusVoltages',k,'Real'][plant.Bus]
                 BusVoltageImag = V['BusVoltages',k,'Imag'][plant.Bus]
     
-                PlantCurrentReal = V['Inputs',k,plant.label,'CurrentReal']
-                PlantCurrentImag = V['Inputs',k,plant.label,'CurrentImag']
+                #PlantCurrentReal = V['Inputs',k,plant.label,'CurrentReal']
+                #PlantCurrentImag = V['Inputs',k,plant.label,'CurrentImag']
                 
                 # Balance the participating currents of the various plants and loads with
                 # the current injection @ the corresponding buses
-                CurrentsBalanceReal[plant.Bus] -= PlantCurrentReal
-                CurrentsBalanceImag[plant.Bus] -= PlantCurrentImag
+                #CurrentsBalanceReal[plant.Bus] -= PlantCurrentReal
+                #CurrentsBalanceImag[plant.Bus] -= PlantCurrentImag
+                PlantCurrentReal =  CurrentsBalanceReal[plant.Bus]
+                PlantCurrentImag = CurrentsBalanceImag[plant.Bus] 
+                 
                            
                 # Re{V.iplant*} -> "Participating Active Power" // Im{V.iplant*} -> "Participating Reactive Power"
                 ParticipatingActivePower   = BusVoltageReal*PlantCurrentReal + BusVoltageImag*PlantCurrentImag
@@ -649,8 +637,8 @@ class PowerGrid:
                     # ParticipatingPower + R*|iplant|**2 - PlantPower = 0
                     EquConst.append(ParticipatingActivePower + plant.R*PlantCurrent2 - PlantPower)
         
-            CurrentBalance.append(CurrentsBalanceReal)
-            CurrentBalance.append(CurrentsBalanceImag)
+            #CurrentBalance.append(CurrentsBalanceReal)
+            #CurrentBalance.append(CurrentsBalanceImag)
         
             ### CONSTRUCT DYNAMIC CONSTRAINTS
             
@@ -692,7 +680,7 @@ class PowerGrid:
 
 
         g = struct_MX([
-          entry("CurrentBalance", expr = CurrentBalance),
+          #entry("CurrentBalance", expr = CurrentBalance),
           entry("BusVoltages2",   expr = BusVoltages2),
           entry("LineCurrents2",  expr = LineCurrents2),
           #entry('Periodic',       expr = PeriodicConst),
@@ -758,9 +746,9 @@ class PowerGrid:
             init['BusVoltages',:,'Real',bus] = 0.5*(self.PowerFlowBounds['Vmin'][bus]+self.PowerFlowBounds['Vmax'][bus])
             init['BusVoltages',:,'Imag',bus] = 0.0
             
-        init['Inputs',:,...,'CurrentReal'] = 1.0
-        init['Inputs',:,...,'CurrentImag'] = 1.0   
-        
+        #init['Inputs',:,...,'CurrentReal'] = 1.0
+        #init['Inputs',:,...,'CurrentImag'] = 1.0   
+        #
         return init
         
     def Profiles(self, N = 0):
