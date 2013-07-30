@@ -338,13 +338,16 @@ class PowerGrid:
             
             Jacobian = solver.jacG()
             Jacobian.init()
-    
-            self.VOPF     = V
+            JacCost = solver.gradF()
+            JacCost.init()
+            
+            self.VOPF = V
             self.gOPF = g
             self.OPF = solver
                  
             self._HessOPF = Hessian
-            self._JacOPF = Jacobian
+            self._JacOPF  = Jacobian
+            self._JacCost = JacCost
 
     
             
@@ -707,8 +710,12 @@ class PowerGrid:
         Jacobian = solver.jacG()
         Jacobian.init()
         
-        self._HessOptDispatch = Hessian
-        self._JacOptDispatch  = Jacobian
+        JacCost = solver.gradF()
+        JacCost.init()
+            
+        self._HessOptDispatch     = Hessian
+        self._JacOptDispatch      = Jacobian
+        self._JacCostOptDispatch  = JacCost
         
         self.u0            = u0
         self.x0            = x0

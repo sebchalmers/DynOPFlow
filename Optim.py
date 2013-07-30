@@ -11,7 +11,7 @@ import os as os
 import numpy as np
 import sys
 sys.path.append('/Users/sebastien/Desktop/DynOPFlow')
-import DynOPFlow2 
+import DynOPFlow2
 reload(DynOPFlow2)
 from DynOPFlow2 import *
 
@@ -228,20 +228,35 @@ g_sol = Net.OptDispatch.output('g')
 V_sol = Net.VOptDispatch.cat
 lam_g_sol = Net.OptDispatch.output('lam_g')
 i_active = []
+g_active = []
 for i in range(g_sol.shape[0]):
     if (Net.ubg.cat[i]-g_sol[i] < lam_g_sol[i]) or (g_sol[i]-Net.lbg.cat[i] < lam_g_sol[i]):
         i_active.append(i)
+        if (Net.ubg.cat[i]-g_sol[i] < lam_g_sol[i]):
+            g_active.append(Net.ubg.cat[i]-g_sol[i])
+        else:
+            g_active.append(g_sol[i]-Net.lbg.cat[i])   
+
 
 i_bound = []
 Jbound = []
 for i in range(Sol.shape[0]):
     if (Sol.cat[i] - Net.lbV.cat[i]  < 1e-10) or (Net.ubV.cat[i] - Sol.cat[i] < 1e-10):
         i_bound.append(i)
-        Newline = np.zeros([1,Sol.shape[0]])
-        Newline[0,i] = 1.
-        Jbound.append(Newline)
+        if (Sol.cat[i] - Net.lbV.cat[i]  < 1e-10):
+            Newline = np.zeros([1,Sol.shape[0]])
+            Newline[0,i] = 1.
+            Jbound.append(Newline)
+            g_active.append(Sol.cat[i] - Net.lbV.cat[i])
+        else:
+            Newline = np.zeros([1,Sol.shape[0]])
+            Newline[0,i] = -1.
+            Jbound.append(Newline)
+            g_active.append(Net.ubV.cat[i] - Sol.cat[i])
+        
 Jbound = np.concatenate(Jbound,axis = 0)
-
+g_active = np.concatenate(g_active,axis=0)
+                         
 iJ = i_active+i_bound
 
 Net._HessOptDispatch.setInput(Net.OptDispatch.output('x'),0)
@@ -255,6 +270,7 @@ Net._JacOptDispatch.setInput(Net.OptDispatch.output('x'),0)
 Net._JacOptDispatch.evaluate()
 J = Net._JacOptDispatch.output()
 
+
 J_active = [np.array(J[i_active,:])]
 J_active.append(Jbound)
 J_active = np.concatenate(J_active,axis=0)
@@ -264,6 +280,18 @@ KKT[:J_active.shape[1],:J_active.shape[1]] = H+np.eye(J_active.shape[1])
 KKT[J_active.shape[1]:,:J_active.shape[1]] = J_active
 KKT[:J_active.shape[1],J_active.shape[1]:] = J_active.T
 
+Net._JacCostOptDispatch.setInput(Net.OptDispatch.output('x'),0)
+Net._JacCostOptDispatch.evaluate()
+JCost = Net._JacCostOptDispatch.output()
+
+RHS = np.zeros([J_active.shape[1] + J_active.shape[0],1])
+RHS[:J_active.shape[1],:] = JCost
+RHS[J_active.shape[1]:,:] = g_active
+
+dX = np.linalg.solve(KKT,RHS)[:J_active.shape[1]]
+print "Norm 2 of dX:", np.sqrt(mul(dX.T,dX))
+
+
 E,W = np.linalg.eig(KKT)
 E = np.real(E)
 print "Min eigenvalue of KKT mat", np.min(np.abs(E))
@@ -272,22 +300,22 @@ U,S,V = np.linalg.svd(J_active)
 print "Min Singular value of J mat", np.min(S)
 
 
-NJ = null(J_active.T,eps=1e-5)
+NJ = null(J_active.T,eps=1e-2)
 #print "Null space: ", NJ
 
-#ising = []
-#for col in [0]:
-#    for k in range(len(NJ[:,col])):
-#        if (np.abs(NJ[k,col]) > 1e-1):
-#            ising.append(k)
-#        
-#
-#Jsing = J_active[ising,:]
-#plt.subplot(2,1,1)
-#plt.spy(Jsing)
-#plt.subplot(2,1,2)
-#plt.spy(J)
-#plt.show()
+ising = []
+for col in [0]:
+    for k in range(len(NJ[:,col])):
+        if (np.abs(NJ[k,col]) > 1e-1):
+            ising.append(k)
+        
+
+Jsing = J_active[ising,:]
+plt.subplot(2,1,1)
+plt.spy(Jsing)
+plt.subplot(2,1,2)
+plt.spy(J)
+plt.show()
 
 
 
