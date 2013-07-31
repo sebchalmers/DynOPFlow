@@ -11,9 +11,9 @@ import os as os
 import numpy as np
 import sys
 sys.path.append('/Users/sebastien/Desktop/DynOPFlow')
-import DynOPFlow2
-reload(DynOPFlow2)
-from DynOPFlow2 import *
+#import DynOPFlow
+#reload(DynOPFlow)
+from DynOPFlow import *
 
 #from scipy import linalg
 def null(A, eps=1e-15):
@@ -34,6 +34,12 @@ Graph = [  [ 0,1, 1+10j   ],
            [ 3,5, 1+10j   ],
            [ 3,4, 1+10j   ]  ] 
 
+#Graph = [  [ 0,1, 2+15j   ],
+#           [ 1,2, 3+5j   ],
+#           [ 1,3, 12+93j ],
+#           [ 3,5, 1.5+13j   ],
+#           [ 3,4, 0.5+12j   ]  ] 
+
 #Define Net properties
 Net = PowerGrid(NBus,Graph)
 Net.Flow()
@@ -49,42 +55,45 @@ dt = 1.
 
 
 #####  Define Hydro Plant #####
-#Hydro = Plant(States = ['h'], Inputs = ['qflow'], R = 0.1, Directionality = 'Bi', Bus = 4, label = 'Hydro')
-Hydro = Plant(States = ['h'],  R = 0.1, Directionality = 'Bi', Bus = 4, label = 'Hydro')
+#Hydro = Plant(States = ['h'], Inputs = ['qflow'], R = 0.0, Directionality = 'Bi', Bus = 4, label = 'Hydro')
+Hydro = []
+HydroLabels = []
+for i in [4]:
+                       HydroLabels.append('Hydro'+str(i))
+                       Hydro.append(Plant(States = ['h'],  R = 0.0, Directionality = 'Bi', Bus = i, label = HydroLabels[-1]))                       
+                       etaT       =  0.8
+                       etaP       =  0.75
+                       A          =  1e-3
+                       rho_air    =  1.2
+                       rho_water  =  1e3
+                       gravity    =  9.81
+                       qTurbmax   =  2*6e-4   
+                       qflow      =  6e-4#Hydro.Inputs['qflow']
+                       PP         =  Hydro[-1].Inputs['Pcharge']
+                       PT         =  Hydro[-1].Inputs['Pdischarge']
+                       PP_prev    =  Hydro[-1].InputsPrev['Pcharge']
+                       PT_prev    =  Hydro[-1].InputsPrev['Pdischarge']
+                       h          =  Hydro[-1].States['h']
+                       
+                       dh = (etaP*PP - PT/etaT)/(rho_water*gravity*A*h) + qflow/A 
+                       Const = [PT/etaT - qTurbmax*rho_water*gravity*h]
+                       Cost = (1/etaT - 1)*PT + (1 - etaP)*PP 
+                       
+                       Hydro[-1].setDynamics     (  RHS = dh, dt = dt    )
+                       Hydro[-1].setConstraints  (  Const                )
+                       Hydro[-1].setCost         (  Cost                 )
+                       
+                       Net.addPlant(Hydro[-1])
+                       
+                       Hydro[-1].LB['States','h'] = 5.
+                       Hydro[-1].UB['States','h'] = 20.
+                       Hydro[-1].UB['Inputs','Pcharge']     = 500.
+                       Hydro[-1].UB['Inputs','Pdischarge']  = 1000.
 
-etaT       =  0.8
-etaP       =  0.75
-A          =  1e-3
-rho_air    =  1.2
-rho_water  =  1e3
-gravity    =  9.81
-qTurbmax   =  2*6e-4   
-qflow      =  6e-4#Hydro.Inputs['qflow']
-PP         =  Hydro.Inputs['Pcharge']
-PT         =  Hydro.Inputs['Pdischarge']
-PP_prev    =  Hydro.InputsPrev['Pcharge']
-PT_prev    =  Hydro.InputsPrev['Pdischarge']
-h          =  Hydro.States['h']
-
-dh = (etaP*PP - PT/etaT)/(rho_water*gravity*A*h) + qflow/A 
-Const = [PT/etaT - qTurbmax*rho_water*gravity*h]
-Cost = (1/etaT - 1)*PT + (1 - etaP)*PP 
-
-Hydro.setDynamics     (  RHS = dh, dt = dt    )
-Hydro.setConstraints  (  Const                )
-Hydro.setCost         (  Cost                 )
-
-Net.addPlant(Hydro)
-
-Hydro.LB['States','h'] = 5.
-Hydro.UB['States','h'] = 20.
-Hydro.UB['Inputs','Pcharge']     = 500.
-Hydro.UB['Inputs','Pdischarge']  = 1000.
-
-
+#Net.addPlant(Hydro)
 
 #####   Define Storage   #####  
-Storage = Plant(States = ['E'], R = 0.1,  Directionality = 'Bi', Bus = 1, label = 'Storage')
+Storage = Plant(States = ['E'], R = 0.0,  Directionality = 'Bi', Bus = 1, label = 'Storage')
 etaC       = 0.9
 etaD       = 0.95
 tau        = 1e-6
@@ -116,7 +125,7 @@ WindCurt      = 22
 Tau           = 0.0
 WindSpeedMean = 10.
 
-Wind          = Plant(States = ['W'], Inputs = ['dW'], R = 0.1, Bus = 5, label = 'Wind')
+Wind          = Plant(States = ['W'], Inputs = ['dW'], R = 0.0, Bus = 5, label = 'Wind')
 PWind         = 0.5*rho_air*A*CPmax*Wind.States['W']**3
 
 Const = []
@@ -133,30 +142,45 @@ Wind.UB['Inputs','Power']      = Prated
 
 
 #####   Thermal   #####
-ThermalRamp       = 200. 
-Thermal           = Plant(Bus = 2, R = 0.1, label = 'Thermal')
-ThermalPower      = Thermal.Inputs['Power']
-ThermalPower_prev = Thermal.InputsPrev['Power']
-
-Cost = 1e3*ThermalPower + (ThermalPower - ThermalPower_prev)**2
-Thermal.setCost(Cost)
-
-Const =   [    ThermalPower - ThermalPower_prev - ThermalRamp  ]  # ThermalPower - ThermalPower_prev <= ThermalRamp
-Const.append( -ThermalPower + ThermalPower_prev - ThermalRamp  )  # - ThermalRamp <= ThermalPower - ThermalPower_prev
-Thermal.setConstraints(Const)
-
-Net.addPlant(Thermal)
-
-Thermal.UB['Inputs','Power'] = 1000
+Thermal = []
+ThermalLabels = []
+for k in [2]:
+                       ThermalLabels.append('Thermal'+str(k))          
+                       ThermalRamp       = 200. 
+                       Thermal.append(      Plant(Bus = k, R = 0.0, label = ThermalLabels[-1]))
+                       ThermalPower      = Thermal[-1].Inputs['Power']
+                       ThermalPower_prev = Thermal[-1].InputsPrev['Power']
+                       
+                       Cost = (ThermalPower - ThermalPower_prev)**2 + ThermalPower
+                       Thermal[-1].setCost(Cost)
+                       
+                       Const =   [    ThermalPower - ThermalPower_prev - ThermalRamp  ]  # ThermalPower - ThermalPower_prev <= ThermalRamp
+                       Const.append( -ThermalPower + ThermalPower_prev - ThermalRamp  )  # - ThermalRamp <= ThermalPower - ThermalPower_prev
+                       Thermal[-1].setConstraints(Const)
+                       
+                       Net.addPlant(Thermal[-1])
+                       
+                       Thermal[-1].UB['Inputs','Power'] = 1000           
 
 #####   Load      ######
 Load = Plant(Load = True, Bus = 0, label = 'Load')
+#ActivePower   = Load.Inputs[  'ActivePower']
+#ReactivePower = Load.Inputs['ReactivePower']
+#Cost = 1e6*(ActivePower + 1300)**2 + 1e6*(ActivePower + 950)**2
+#Load.setCost(Cost)
+
 Net.addPlant(Load)
 
-Load.LB['Inputs',  'ActivePower'] = -1000
-Load.LB['Inputs','ReactivePower'] =  -750
-Load.UB['Inputs',  'ActivePower'] = -1000
-Load.UB['Inputs','ReactivePower'] =  -750
+
+Load.LB['Inputs',  'ActivePower'] = -1300
+Load.LB['Inputs','ReactivePower'] =  -950
+Load.UB['Inputs',  'ActivePower'] = -1300
+Load.UB['Inputs','ReactivePower'] =  -950
+
+#Load.LB['Inputs',  'ActivePower'] = -1000
+#Load.LB['Inputs','ReactivePower'] =  -750
+#Load.UB['Inputs',  'ActivePower'] = -1000
+#Load.UB['Inputs','ReactivePower'] =  -750
 
 # Impose current bounds on all plants
 #for plant in Net.PlantList:
@@ -188,10 +212,14 @@ Net.Dispatch(Horizon = Horizon),# Simulation = Nsimulation)
 u0 = Net.u0()
 x0 = Net.x0()
 
-u0['Thermal','Power']  = 0.
+for key in ThermalLabels:
+    u0[key,'Power']  = 0.
 x0['Wind',   'W']      = 9.25
 x0['Storage','E']      = 0.9*2e3
-x0['Hydro',  'h']      = 0.9*20
+
+for key in HydroLabels:
+    x0[key,  'h']      = 0.9*20
+#x0['Hydro2',  'h']      = 0.9*20
 
 #Make initial guess
 init = Net.init()
@@ -204,12 +232,15 @@ init['States',:,'Wind','W'] = x0['Wind',   'W']
 Net.LBInputProfiles['Wind',:,'dW']   = dW                                                                 
 Net.UBInputProfiles['Wind',:,'dW']   = dW   
                
-Net.LBInputProfiles['Load',:,'ActivePower']   = LoadActivePower
-Net.LBInputProfiles['Load',:,'ReactivePower'] = LoadReactivePower
-Net.UBInputProfiles['Load',:,'ActivePower']   = LoadActivePower
-Net.UBInputProfiles['Load',:,'ReactivePower'] = LoadReactivePower
+#Net.LBInputProfiles['Load',:,'ActivePower']   = LoadActivePower
+#Net.LBInputProfiles['Load',:,'ReactivePower'] = LoadReactivePower
+#Net.UBInputProfiles['Load',:,'ActivePower']   = LoadActivePower
+#Net.UBInputProfiles['Load',:,'ReactivePower'] = LoadReactivePower
                                               
 Sol,_ = Net.DYNSolve(x0 = x0, u0 = u0, init = init)
+
+Net.ExtractInfo(Sol, PlantPower = True, BusPower = True, TotalPower = True)
+Net.DYNSolvePlot(Sol, dt = 1)
 
 Net._HessOptDispatch.setInput(Net.OptDispatch.output('x'),0)
 Net._HessOptDispatch.setInput(1.,1)
@@ -276,7 +307,7 @@ J_active.append(Jbound)
 J_active = np.concatenate(J_active,axis=0)
 
 KKT = np.zeros([J_active.shape[1] + J_active.shape[0],J_active.shape[1] + J_active.shape[0]])
-KKT[:J_active.shape[1],:J_active.shape[1]] = H+np.eye(J_active.shape[1])
+KKT[:J_active.shape[1],:J_active.shape[1]] = H+1e0*np.eye(J_active.shape[1])
 KKT[J_active.shape[1]:,:J_active.shape[1]] = J_active
 KKT[:J_active.shape[1],J_active.shape[1]:] = J_active.T
 
@@ -291,31 +322,49 @@ RHS[J_active.shape[1]:,:] = g_active
 dX = np.linalg.solve(KKT,RHS)[:J_active.shape[1]]
 print "Norm 2 of dX:", np.sqrt(mul(dX.T,dX))
 
-
-E,W = np.linalg.eig(KKT)
-E = np.real(E)
-print "Min eigenvalue of KKT mat", np.min(np.abs(E))
+dX = Net.VOptDispatch(dX)#/(Sol.cat+1e-12))
 
 U,S,V = np.linalg.svd(J_active)
 print "Min Singular value of J mat", np.min(S)
+print "Max Singular value of J mat", np.max(S)
+print "Conditioning of J (log scale)", np.log(np.max(S)/np.min(S))
 
 
-NJ = null(J_active.T,eps=1e-2)
-#print "Null space: ", NJ
+V = V[:S.shape[0],:]
+Sinv = np.diag(1/S)
+S = np.diag(S)
 
-ising = []
-for col in [0]:
-    for k in range(len(NJ[:,col])):
-        if (np.abs(NJ[k,col]) > 1e-1):
-            ising.append(k)
-        
+np.allclose(J_active,np.dot(U,np.dot(S,V)))
 
-Jsing = J_active[ising,:]
-plt.subplot(2,1,1)
-plt.spy(Jsing)
-plt.subplot(2,1,2)
-plt.spy(J)
-plt.show()
+np.dot(V.T,np.dot(Sinv,U.T))
+
+#Net.ExtractInfo(dX, PlantPower = True, BusPower = True, TotalPower = True)
+#Net.DYNSolvePlot(dX, dt = 1)
+
+#E,W = np.linalg.eig(KKT)
+#E = np.real(E)
+#print "Min eigenvalue of KKT mat", np.min(np.abs(E))
+#
+#
+#
+#NJ = null(J_active.T,eps=1e-2)
+##print "Null space: ", NJ
+
+#SmallS = 10*np.min(S)
+
+#ising = []
+#for col in [0]:
+#    for k in range(len(NJ[:,col])):
+#        if (np.abs(NJ[k,col]) > 1e-1):
+#            ising.append(k)
+#        
+#
+#Jsing = J_active[ising,:]
+#plt.subplot(2,1,1)
+#plt.spy(Jsing)
+#plt.subplot(2,1,2)
+#plt.spy(J)
+#plt.show()
 
 
 

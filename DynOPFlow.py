@@ -208,13 +208,13 @@ class Plant:
             self._TerminalCost = self._BuildFunc(Cost, Terminal)
      
 
-    def addPlant(self, Net):
-        if (self._frozen == True):
-            print "Plant already added to the grid, call ignored"
-            return
-        
-        Net.PlantList.append(self)
-        self._frozen = True
+    #def addPlant(self, Net):
+    #    if (self._frozen == True):
+    #        print "Plant already added to the grid, call ignored"
+    #        return
+    #    
+    #    Net.PlantList.append(self)
+    #    self._frozen = True
 
 class PowerGrid:
     """
@@ -228,6 +228,8 @@ class PowerGrid:
         self.NBus = NBus
         self.Graph = Graph
         self.PlantList = []
+        
+        self._hasStates = False
         
         self.PowerFlowBounds = {'Vmin' :           0,
                                 'Vmax' :           inf,
@@ -354,14 +356,16 @@ class PowerGrid:
             Jacobian = solver.jacG()
             Jacobian.init()
     
+            JacCost = solver.gradF()
+            JacCost.init()
+        
             self.VOPF     = V
             self.gOPF = g
             self.OPF = solver
                  
             self._HessOPF = Hessian
             self._JacOPF = Jacobian
-
-    
+            self._JacCostOPF  = JacCost
             
     def OPFSolve(self, Grid = []):
         
@@ -443,6 +447,11 @@ class PowerGrid:
         
         self.OPF.solve()
          
+        self.lbg = lbg
+        self.ubg = ubg
+        self.lbV = lbV
+        self.ubV = ubV
+        
         return  self.VOPF(self.OPF.output('x'))
 
 ###########     POWER DISPACTH PROBLEM   ##########
@@ -490,12 +499,19 @@ class PowerGrid:
 
     
     def addPlant(self, plant):
-        if (plant._frozen == True):
-            print "Plant already added to the grid, call ignored"
-            return
-        
-        self.PlantList.append(plant)
-        plant._frozen = True
+        if isinstance(plant,list): #Treat list of plants
+            for plant_k in plant:
+                self.addPlant(plant_k)
+        else:        
+            if (plant._frozen == True):
+                print "Plant already added to the grid, call ignored"
+                return
+            
+            self.PlantList.append(plant)
+            plant._frozen = True
+            if hasattr(plant,'_Shoot'):
+                self._hasStates = True  
+
     
     def Dispatch(self, Horizon = 24, Simulation = 0, GridLoss = True):
         """
@@ -551,21 +567,34 @@ class PowerGrid:
                                         entry('EW',  struct = EW) 
                         ])
         
+        Vlist = []
+        Vlist.append(entry("BusVoltages",             repeat = Nstage,     struct = self.BusVoltages))
+        if (self._hasStates == True):
+            Vlist.append(entry("States",              repeat = Nstage+1,   struct = States))
+        Vlist.append(entry("Inputs",                  repeat = Nstage,     struct = Inputs))
         
-        #Structure for decision variables 
-        V    = struct_msym([
-                                entry("BusVoltages",             repeat = Nstage,     struct = self.BusVoltages),     
-                                entry("States",                  repeat = Nstage+1,   struct = States),
-                                entry("Inputs",                  repeat = Nstage,     struct = Inputs)
-        ])
+        V    = struct_msym(Vlist)
+        ##Structure for decision variables 
+        #V    = struct_msym([
+        #                        entry("BusVoltages",             repeat = Nstage,     struct = self.BusVoltages),     
+        #                        entry("States",                  repeat = Nstage+1,   struct = States),
+        #                        entry("Inputs",                  repeat = Nstage,     struct = Inputs)
+        #])
         
         #Structure for storing NMPC solutions if Nsim provided
-        if (Simulation > 0):    
-            Vstore = struct_msym([
-                                    entry("BusVoltages",             repeat = Simulation,     struct = self.BusVoltages),     
-                                    entry("States",                  repeat = Simulation,     struct = States),
-                                    entry("Inputs",                  repeat = Simulation,     struct = Inputs)
-            ])
+        if (Simulation > 0):
+            Vlist = []
+            Vlist.append(entry("BusVoltages",             repeat = Simulation,     struct = self.BusVoltages))
+            if (self._hasStates == True):
+                Vlist.append(entry("States",              repeat = Simulation,   struct = States))
+            Vlist.append(entry("Inputs",                  repeat = Simulation,     struct = Inputs))
+        
+            Vstore    = struct_msym(Vlist)
+            #Vstore = struct_msym([
+            #                        entry("BusVoltages",             repeat = Simulation,     struct = self.BusVoltages),     
+            #                        entry("States",                  repeat = Simulation,     struct = States),
+            #                        entry("Inputs",                  repeat = Simulation,     struct = Inputs)
+            #])
             
             self.Vstore = Vstore()
             
@@ -613,18 +642,20 @@ class PowerGrid:
             [CurrentsBalanceReal] = self.BusCurrentsRealFunc.call([V['BusVoltages',k]])
             [CurrentsBalanceImag] = self.BusCurrentsImagFunc.call([V['BusVoltages',k]])       
         
-
+            
             for plant in self.PlantList:
 
                 #Bus Voltage for the selected plant/load
                 BusVoltageReal = V['BusVoltages',k,'Real'][plant.Bus]
                 BusVoltageImag = V['BusVoltages',k,'Imag'][plant.Bus]
     
+                #Plant Current of the selected plant/load
                 PlantCurrentReal = V['Inputs',k,plant.label,'CurrentReal']
                 PlantCurrentImag = V['Inputs',k,plant.label,'CurrentImag']
                 
                 # Balance the participating currents of the various plants and loads with
                 # the current injection @ the corresponding buses
+
                 CurrentsBalanceReal[plant.Bus] -= PlantCurrentReal
                 CurrentsBalanceImag[plant.Bus] -= PlantCurrentImag
                            
@@ -860,10 +891,11 @@ class PowerGrid:
         
 
         ######  EMBBED INITIAL CONDITIONS   #######
-        lbV['States',0] = x0 
-        ubV['States',0] = x0
-        
-        #lbV.cat = lbV.cat - (ubV.cat == inf)*ubV.cat #Set inf in x0 to free the initial conditions
+        if (self._hasStates == True):
+            print "Initial Condition embedding"
+            lbV['States',0] = x0 
+            ubV['States',0] = x0
+
                 
         ###### PERIODIC CONSTRAINTS (IF REQUIRED)   #######
         #if (Periodic == False):

@@ -193,13 +193,13 @@ class Plant:
             self._TerminalCost = self._BuildFunc(Cost, Terminal)
      
 
-    def addPlant(self, Net):
-        if (self._frozen == True):
-            print "Plant already added to the grid, call ignored"
-            return
-        
-        Net.PlantList.append(self)
-        self._frozen = True
+    #def addPlant(self, Net):
+    #    if (self._frozen == True):
+    #        print "Plant already added to the grid, call ignored"
+    #        return
+    #    
+    #    Net.PlantList.append(self)
+    #    self._frozen = True
 
 class PowerGrid:
     """
@@ -213,7 +213,8 @@ class PowerGrid:
         self.NBus = NBus
         self.Graph = Graph
         self.PlantList = []
-        
+        self._hasStates = False
+                
         self.PowerFlowBounds = {'Vmin' :           0,
                                 'Vmax' :           inf,
                                 'LineCurrentMax' : inf }
@@ -294,22 +295,42 @@ class PowerGrid:
                                     entry('Reactive', repeat = NBus)
                                 ])
             
+            Current = struct_ssym([
+                                    entry('Real',   repeat = NBus),
+                                    entry('Imag', repeat = NBus)
+                                ])
+            
             V = struct_msym([
                                     entry('BusPower', struct = Power),
-                                    entry('BusVoltages', struct = BusVoltages)
+                                    entry('BusVoltages', struct = BusVoltages),
+                                    entry('BusCurrent', struct = Current),
                             ])
             
-            [BusActivePower] =   self.BusActivePowerFunc.call([V['BusVoltages']])
-            [BusReactivePower] = self.BusReactivePowerFunc.call([V['BusVoltages']])
-            [LineCurrents2] =    self.LineCurrents2Func.call([V['BusVoltages']])
-            [BusVoltages2] =     self.BusVoltages2Func.call([V['BusVoltages']])
+             
+            [BusCurrentReal]   =   self.BusCurrentsRealFunc.call([V['BusVoltages']])
+            [BusCurrentImag]   =   self.BusCurrentsImagFunc.call([V['BusVoltages']])
+            [LineCurrents2]    =   self.LineCurrents2Func.call([V['BusVoltages']])
+            [BusVoltages2]     =   self.BusVoltages2Func.call([V['BusVoltages']])
             
-            ActivePowerBalance =     BusActivePower - V['BusPower','Active',  veccat]
+            RealCurrentBalance =   BusCurrentReal - V['BusCurrent','Real',veccat]
+            ImagCurrentBalance =   BusCurrentReal - V['BusCurrent','Imag',veccat]
+    
+            BusCurrentReal = V['BusCurrent','Real',veccat]
+            BusCurrentImag = V['BusCurrent','Imag',veccat]
+
+            BusActivePower     =   V['BusVoltages','Real',veccat]*V['BusCurrent','Real',veccat] + V['BusVoltages','Imag',veccat]*V['BusCurrent','Imag',veccat]
+            BusReactivePower   =   V['BusVoltages','Imag',veccat]*V['BusCurrent','Real',veccat] - V['BusVoltages','Real',veccat]*V['BusCurrent','Imag',veccat]
+    
+            ActivePowerBalance   = BusActivePower   - V['BusPower','Active',  veccat]
             ReactivePowerBalance = BusReactivePower - V['BusPower','Reactive',veccat]
+
+
 
             g = struct_MX([
                               entry('ActivePower',   expr = ActivePowerBalance),
                               entry('ReactivePower', expr = ReactivePowerBalance),
+                              entry('RealCurrent',   expr = RealCurrentBalance),
+                              entry('ImagCurrent',   expr = ImagCurrentBalance),
                               entry('LineCurrents2', expr = LineCurrents2),
                               entry('BusVoltages2',  expr = BusVoltages2)
                           ])
@@ -341,13 +362,18 @@ class PowerGrid:
             JacCost = solver.gradF()
             JacCost.init()
             
+            JacCost = solver.gradF()
+            JacCost.init()
+            
+
+        
             self.VOPF = V
             self.gOPF = g
             self.OPF = solver
                  
             self._HessOPF = Hessian
             self._JacOPF  = Jacobian
-            self._JacCost = JacCost
+            self._JacCostOPF = JacCost
 
     
             
@@ -372,6 +398,7 @@ class PowerGrid:
         #Set initial guess
         init =  self.VOPF()
         init['BusVoltages','Real',veccat] = 1.
+        init['BusCurrent','Real',veccat] = 1.
         
         #Set the bounds (default values if not defined)
         lbV  =  self.VOPF(-inf)
@@ -402,8 +429,8 @@ class PowerGrid:
         for entry in range(np.size(Grid)):                
             if      (Grid[entry]['Property'] == 'slack'):
                 print "Bus", Grid[entry]['Bus'],"is slack"
-                lbg['BusVoltages2',Grid[entry]['Bus']]       = Grid[entry]['V']**2
-                ubg['BusVoltages2',Grid[entry]['Bus']]       = Grid[entry]['V']**2
+                #lbg['BusVoltages2',Grid[entry]['Bus']]       = Grid[entry]['V']**2
+                #ubg['BusVoltages2',Grid[entry]['Bus']]       = Grid[entry]['V']**2
                 lbV['BusVoltages','Imag',Grid[entry]['Bus']] =       0.0
                 ubV['BusVoltages','Imag',Grid[entry]['Bus']] =       0.0
                 
@@ -420,6 +447,12 @@ class PowerGrid:
                 ubV['BusPower','Active',Grid[entry]['Bus']]    = Grid[entry]['P']
                 lbV['BusPower','Reactive',Grid[entry]['Bus']]  = Grid[entry]['Q']
                 ubV['BusPower','Reactive',Grid[entry]['Bus']]  = Grid[entry]['Q']
+            elif    (Grid[entry]['Property'] == 'Trans'):
+                lbV['BusCurrent','Imag',Grid[entry]['Bus']] =       0.0
+                ubV['BusCurrent','Imag',Grid[entry]['Bus']] =       0.0
+                lbV['BusCurrent','Real',Grid[entry]['Bus']] =       0.0
+                ubV['BusCurrent','Real',Grid[entry]['Bus']] =       0.0
+
             
         
         
@@ -431,6 +464,11 @@ class PowerGrid:
         
         self.OPF.solve()
          
+        self.lbg = lbg
+        self.ubg = ubg
+        self.lbV = lbV
+        self.ubV = ubV
+        
         return  self.VOPF(self.OPF.output('x'))
 
 ###########     POWER DISPACTH PROBLEM   ##########
@@ -484,7 +522,9 @@ class PowerGrid:
         
         self.PlantList.append(plant)
         plant._frozen = True
-    
+        if hasattr(plant,'_Shoot'):
+            self._hasStates = True  
+        
     def Dispatch(self, Horizon = 24, Simulation = 0, GridLoss = True):
         """
         Constructs the power dispatch problem, default Horizon length (if argument Horizon is not provided) is 24 time units
@@ -583,8 +623,16 @@ class PowerGrid:
         ThermalConst    = []
         ThermalConstExt = []
        
-
+        TransmBus = []
+        for bus in range(NBus):
+            Trans = True
+            for plant in self.PlantList:
+                if (plant.Bus == bus):
+                    Trans = False
+            if (Trans == True):
+                TransmBus.append(bus)
         
+        print "Transmission Buses: ", TransmBus
     
         #########    BUILD COST & CONSTRAINTS    #######
         for k in range(Nstage): #k is reserved for time instant throughout the code
@@ -598,8 +646,8 @@ class PowerGrid:
             BusVoltages2.append(BusVoltages2_k)
             
             #Compute Bus Injection Currents
-            [CurrentsBalanceReal] = self.BusCurrentsRealFunc.call([V['BusVoltages',k]])
-            [CurrentsBalanceImag] = self.BusCurrentsImagFunc.call([V['BusVoltages',k]])       
+            [BusCurrentsReal] = self.BusCurrentsRealFunc.call([V['BusVoltages',k]])
+            [BusCurrentsImag] = self.BusCurrentsImagFunc.call([V['BusVoltages',k]])       
         
 
             for plant in self.PlantList:
@@ -613,12 +661,13 @@ class PowerGrid:
                 
                 # Balance the participating currents of the various plants and loads with
                 # the current injection @ the corresponding buses
+                PlantCurrentReal = BusCurrentsReal[plant.Bus]
+                PlantCurrentImag = BusCurrentsImag[plant.Bus] 
+                 
                 #CurrentsBalanceReal[plant.Bus] -= PlantCurrentReal
                 #CurrentsBalanceImag[plant.Bus] -= PlantCurrentImag
-                PlantCurrentReal =  CurrentsBalanceReal[plant.Bus]
-                PlantCurrentImag = CurrentsBalanceImag[plant.Bus] 
-                 
-                           
+
+           
                 # Re{V.iplant*} -> "Participating Active Power" // Im{V.iplant*} -> "Participating Reactive Power"
                 ParticipatingActivePower   = BusVoltageReal*PlantCurrentReal + BusVoltageImag*PlantCurrentImag
                 ParticipatingReactivePower = BusVoltageImag*PlantCurrentReal - BusVoltageReal*PlantCurrentImag
@@ -640,8 +689,9 @@ class PowerGrid:
                     # ParticipatingPower + R*|iplant|**2 - PlantPower = 0
                     EquConst.append(ParticipatingActivePower + plant.R*PlantCurrent2 - PlantPower)
         
-            #CurrentBalance.append(CurrentsBalanceReal)
-            #CurrentBalance.append(CurrentsBalanceImag)
+            
+            CurrentBalance.append(BusCurrentsReal[TransmBus])
+            CurrentBalance.append(BusCurrentsImag[TransmBus])
         
             ### CONSTRUCT DYNAMIC CONSTRAINTS
             
@@ -683,7 +733,7 @@ class PowerGrid:
 
 
         g = struct_MX([
-          #entry("CurrentBalance", expr = CurrentBalance),
+          entry("CurrentBalance", expr = CurrentBalance),
           entry("BusVoltages2",   expr = BusVoltages2),
           entry("LineCurrents2",  expr = LineCurrents2),
           #entry('Periodic',       expr = PeriodicConst),
@@ -851,8 +901,10 @@ class PowerGrid:
         
 
         ######  EMBBED INITIAL CONDITIONS   #######
-        lbV['States',0] = x0 
-        ubV['States',0] = x0
+        if (self._hasStates == True):
+            print "Initial Condition embedding"
+            lbV['States',0] = x0 
+            ubV['States',0] = x0
         
         #lbV.cat = lbV.cat - (ubV.cat == inf)*ubV.cat #Set inf in x0 to free the initial conditions
                 
@@ -980,12 +1032,16 @@ class PowerGrid:
                 TotalPower['Load'] -= np.array(v_opt['Inputs',:,plant.label,'ActivePower'])
                    
             TotalPower['Injected'] = 0.
-            for plant in [plant for plant in self.PlantList if not(plant._Load == True)]:     
+            for plant in [plant for plant in self.PlantList if not(plant._Load == True)]:
+                    
                     if (plant.Directionality == 'Mono'):
                         TotalPower['Injected'] += np.array(v_opt['Inputs',:,plant.label,'Power'])
+                        print plant.label
+                        print np.array(v_opt['Inputs',:,plant.label,'Power'])
                     else:
                         TotalPower['Injected'] += np.array(v_opt['Inputs',:,plant.label,'Pdischarge']) - np.array(v_opt['Inputs',:,plant.label,'Pcharge'])        
-
+                        print plant.label
+                        print np.array(v_opt['Inputs',:,plant.label,'Pdischarge']) - np.array(v_opt['Inputs',:,plant.label,'Pcharge']) 
             self.SolutionInfo['TotalPower'] = TotalPower             
         
         
@@ -1018,41 +1074,7 @@ class PowerGrid:
             self.SolutionInfo['BusCurrentModule'] = np.concatenate(  BusCurrentModule, axis=0)
             self.SolutionInfo['BusCurrentAngle']  = np.concatenate(  BusCurrentAngle,  axis=0)
         
-        if (PlantPower == True):
-            PlantActivePowerDictionary = {}
-            PlantReactivePowerDictionary = {}
-            CosPhiDictionary = {}
-
-            for plant in self.PlantList:
-                #Data = self.Plants[key]
-                #Nplant = np.size(Data,axis = 0)
-                PlantActivePower = []
-                PlantReactivePower = []
-                CosPhi = []
-                TanPhi = []
-
-                Bus = plant.Bus
-                CurrentReal =    veccat(v_opt['Inputs',:,plant.label,'CurrentReal'])
-                CurrentImag =    veccat(v_opt['Inputs',:,plant.label,'CurrentImag'])
-                BusVoltageReal = veccat(v_opt['BusVoltages',:,'Real',Bus])
-                BusVoltageImag = veccat(v_opt['BusVoltages',:,'Imag',Bus])
-                
-                PlantActivePower_plant = np.array(BusVoltageReal*CurrentReal + BusVoltageImag*CurrentImag)
-                PlantReactivePower_plant = np.array(BusVoltageImag*CurrentReal - BusVoltageReal*CurrentImag)
-                PlantApparentPower_plant = sqrt(PlantReactivePower_plant**2 + PlantActivePower_plant**2)
-                
-                PlantActivePower.append(PlantActivePower_plant)
-                PlantReactivePower.append(PlantReactivePower_plant)
-                CosPhi.append(PlantActivePower_plant/PlantApparentPower_plant)
-                    
-                    
-                PlantActivePowerDictionary[plant.label]   =  PlantActivePower
-                PlantReactivePowerDictionary[plant.label] =  PlantReactivePower
-                CosPhiDictionary[plant.label]             =  CosPhi
-                
-            self.SolutionInfo['PlantActivePower']         =  PlantActivePowerDictionary
-            self.SolutionInfo['PlantReactivePower']       =  PlantReactivePowerDictionary
-            self.SolutionInfo['PlantCosPhi']              =  CosPhiDictionary
+        
 
 
 
@@ -1157,20 +1179,20 @@ class PowerGrid:
         SaveFig(Path,'Lines')
 
                 
-        plt.figure(7)
-        fig = 1
-        for plant in self.PlantList:            
-            plt.subplot(SizeSubpltAll,SizeSubpltAll,fig)
-            plt.step(time['Inputs'],1e-3*self.SolutionInfo['PlantActivePower'][plant.label][0], color = 'k', label = 'Act. Power', linewidth = LW)
-            plt.step(time['Inputs'],1e-3*self.SolutionInfo['PlantReactivePower'][plant.label][0], color = 'r', label = 'React. Power', linewidth = LW)
-            fig += 1
-            plt.ylabel('GW')
-            plt.xlabel('time (s)')
-            plt.title(str(plant.label)+', bus '+str(plant.Bus))
-                
-        plt.legend(bbox_to_anchor=(1, 1), loc=2, borderaxespad=0.)
-
-        SaveFig(Path,'BusPower')
+        #plt.figure(7)
+        #fig = 1
+        #for plant in self.PlantList:            
+        #    plt.subplot(SizeSubpltAll,SizeSubpltAll,fig)
+        #    plt.step(time['Inputs'],1e-3*self.SolutionInfo['PlantActivePower'][plant.label][0], color = 'k', label = 'Act. Power', linewidth = LW)
+        #    plt.step(time['Inputs'],1e-3*self.SolutionInfo['PlantReactivePower'][plant.label][0], color = 'r', label = 'React. Power', linewidth = LW)
+        #    fig += 1
+        #    plt.ylabel('GW')
+        #    plt.xlabel('time (s)')
+        #    plt.title(str(plant.label)+', bus '+str(plant.Bus))
+        #        
+        #plt.legend(bbox_to_anchor=(1, 1), loc=2, borderaxespad=0.)
+        #
+        #SaveFig(Path,'BusPower')
 
         
         plt.figure(8)
@@ -1240,12 +1262,12 @@ class PowerGrid:
                     subPltNum += len(plant.States.keys())
                 subPltNum = np.ceil(sqrt(subPltNum))
             
-                #Plot current
-                plt.subplot(subPltNum,subPltNum,0)
-                plt.step(time['Inputs'],np.array(v_opt['Inputs',:,plant.label,'CurrentReal']),where = 'post',label = 'Real Current')
-                plt.step(time['Inputs'],np.array(v_opt['Inputs',:,plant.label,'CurrentImag']),where = 'post',label = 'Complex Current')
-                plt.title('Current')
-                plt.legend()
+                ##Plot current
+                #plt.subplot(subPltNum,subPltNum,0)
+                #plt.step(time['Inputs'],np.array(v_opt['Inputs',:,plant.label,'CurrentReal']),where = 'post',label = 'Real Current')
+                #plt.step(time['Inputs'],np.array(v_opt['Inputs',:,plant.label,'CurrentImag']),where = 'post',label = 'Complex Current')
+                #plt.title('Current')
+                #plt.legend()
                 
                 plt.subplot(subPltNum,subPltNum,1)
                 plt.title('Power')

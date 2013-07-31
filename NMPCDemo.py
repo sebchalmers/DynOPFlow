@@ -187,7 +187,6 @@ init['States',:,'Wind','W'] = x0['Wind',   'W']
 Net.LBInputProfiles['Hydro',:,'qflow'] = 6e-4
 Net.UBInputProfiles['Hydro',:,'qflow'] = 6e-4
 
-
 Net.LBInputProfiles['Wind',:,'dW']   = dW                                                                 
 Net.UBInputProfiles['Wind',:,'dW']   = dW   
                
