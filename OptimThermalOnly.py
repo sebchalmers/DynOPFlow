@@ -13,7 +13,7 @@ import sys
 sys.path.append('/Users/sebastien/Desktop/DynOPFlow')
 #import DynOPFlow
 #reload(DynOPFlow)
-from DynOPFlow import *
+from DynOPFlowProfiles import *
 
 #from scipy import linalg
 def null(A, eps=1e-15):
@@ -109,10 +109,10 @@ for plant in plantKeys:
 init = Net.init()
 
                 
-Net.LBInputProfiles['Load',:,'ActivePower']   = LoadActivePower
-Net.LBInputProfiles['Load',:,'ReactivePower'] = LoadReactivePower
-Net.UBInputProfiles['Load',:,'ActivePower']   = LoadActivePower
-Net.UBInputProfiles['Load',:,'ReactivePower'] = LoadReactivePower
+Net.LBProfiles['Inputs',:,'Load','ActivePower']   = LoadActivePower
+Net.LBProfiles['Inputs',:,'Load','ReactivePower'] = LoadReactivePower
+Net.UBProfiles['Inputs',:,'Load','ActivePower']   = LoadActivePower
+Net.UBProfiles['Inputs',:,'Load','ReactivePower'] = LoadReactivePower
                                               
 Sol,_ = Net.DYNSolve(u0 = u0, init = init)
 
