@@ -811,6 +811,7 @@ class PowerGrid:
                 self.LBProfiles['States',:,plant.label] = plant.LB['States']
                 self.UBProfiles['States',:,plant.label] = plant.UB['States']
     
+        return Nprofile
     #ASSIGN PROFILES & SOLVE
 
     def DYNSolve(self, x0 = [], u0 = 0., init = [], time = 0, Periodic = False):

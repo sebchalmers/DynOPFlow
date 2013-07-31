@@ -195,18 +195,15 @@ def ensure_dir(f):
         os.makedirs(f)
         
 Horizon    = 24
-#Nsimulation = int(10*24)
 
-Net.Profiles(Horizon)
+Net.Dispatch(Horizon = Horizon)
+Nprofile = Net.Profiles()
 
-Nprofile = Net.Nprofile
 
 dW = [rand.normalvariate(0,0.0) for k in range(Nprofile)]
 
 LoadActivePower   = [300*np.cos(2*np.pi*k*dt/24.) - 1000  for k in range(Nprofile)]
 LoadReactivePower = [0.75*LoadActivePower[k] for k in range(Nprofile)]
-
-Net.Dispatch(Horizon = Horizon),# Simulation = Nsimulation)
 
 #Initial conditions (set inf in x0 to free the initial conditions)
 u0 = Net.u0()
@@ -214,12 +211,12 @@ x0 = Net.x0()
 
 for key in ThermalLabels:
     u0[key,'Power']  = 0.
+    
 x0['Wind',   'W']      = 9.25
 x0['Storage','E']      = 0.9*2e3
 
 for key in HydroLabels:
     x0[key,  'h']      = 0.9*20
-#x0['Hydro2',  'h']      = 0.9*20
 
 #Make initial guess
 init = Net.init()
@@ -251,7 +248,6 @@ Net._JacOptDispatch.setInput(Net.OptDispatch.output('x'),0)
 Net._JacOptDispatch.evaluate()
 J = Net._JacOptDispatch.output()
 
-#g_sol = Net.gOptDispatch(Net.OptDispatch.output('g'))
 
 g_sol = Net.OptDispatch.output('g')
 V_sol = Net.VOptDispatch.cat
