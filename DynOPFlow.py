@@ -456,6 +456,52 @@ class PowerGrid:
 
 ###########     POWER DISPACTH PROBLEM   ##########
 
+    def addPlant(self, plant):
+        if isinstance(plant,list): #Treat list of plants
+            for plant_k in plant:
+                self.addPlant(plant_k)
+        else:        
+            if (plant._frozen == True):
+                print "Plant already added to the grid, call ignored"
+                return
+            
+            self.PlantList.append(plant)
+            plant._frozen = True
+            if hasattr(plant,'_Shoot'):
+                self._hasStates = True
+                
+    def _VariableConstructor(self, N):
+        ###### CONSTRUCT DECISION VARIABLES OF LENGTH N #######
+        List = []
+        for plant in self.PlantList:
+            List.append(entry(plant.label,  struct = plant.Inputs))
+        Inputs = struct_ssym(List)
+        
+        List = []
+        for plant in self.PlantList:
+            if (len(plant.States.keys()) > 0):
+                List.append(entry(plant.label,  struct = plant.States))
+        States = struct_ssym(List)
+        
+        
+        #Structures to manipulate initial conditions and inputs
+        u0 = struct_msym(Inputs)
+        x0 = struct_msym(States)
+        
+        EP = struct_msym([
+                                        entry('u0',  struct = u0)
+                        ])
+        
+        Vlist = []
+        Vlist.append(entry("BusVoltages",             repeat = N,     struct = self.BusVoltages))
+        if (self._hasStates == True):
+            Vlist.append(entry("States",              repeat = N+1,   struct = States))
+        Vlist.append(entry("Inputs",                  repeat = N,     struct = Inputs))
+        
+        V = struct_msym(Vlist)
+
+        return V, u0, x0, EP
+    
 
     def _CostConstructor(self, V, EP, Nstage, GridLoss):
         """
@@ -497,22 +543,6 @@ class PowerGrid:
 
         return Cost, CostF
 
-    
-    def addPlant(self, plant):
-        if isinstance(plant,list): #Treat list of plants
-            for plant_k in plant:
-                self.addPlant(plant_k)
-        else:        
-            if (plant._frozen == True):
-                print "Plant already added to the grid, call ignored"
-                return
-            
-            self.PlantList.append(plant)
-            plant._frozen = True
-            if hasattr(plant,'_Shoot'):
-                self._hasStates = True  
-
-    
     def Dispatch(self, Horizon = 24, Simulation = 0, GridLoss = True):
         """
         Constructs the power dispatch problem, default Horizon length (if argument Horizon is not provided) is 24 time units
@@ -544,60 +574,15 @@ class PowerGrid:
             
   
         ###################   CONSTRUCT VARIABLES    ########################
+             
+        V, u0, x0, EP = self._VariableConstructor(Nstage)
         
-        List = []
-        for plant in self.PlantList:
-            List.append(entry(plant.label,  struct = plant.Inputs))
-        Inputs = struct_ssym(List)
-        
-        List = []
-        for plant in self.PlantList:
-            if (len(plant.States.keys()) > 0):
-                List.append(entry(plant.label,  struct = plant.States))
-        States = struct_ssym(List)
-        
-        
-        #Structures to manipulate initial conditions and inputs
-        u0 = struct_msym(Inputs)
-        x0 = struct_msym(States)
-        
-        EW = struct_ssym([entry('EW')]) #Will be used to decouple the input profiles from previous solutions
-        EP = struct_msym([
-                                        entry('u0',  struct = u0),
-                                        entry('EW',  struct = EW) 
-                        ])
-        
-        Vlist = []
-        Vlist.append(entry("BusVoltages",             repeat = Nstage,     struct = self.BusVoltages))
-        if (self._hasStates == True):
-            Vlist.append(entry("States",              repeat = Nstage+1,   struct = States))
-        Vlist.append(entry("Inputs",                  repeat = Nstage,     struct = Inputs))
-        
-        V    = struct_msym(Vlist)
-        ##Structure for decision variables 
-        #V    = struct_msym([
-        #                        entry("BusVoltages",             repeat = Nstage,     struct = self.BusVoltages),     
-        #                        entry("States",                  repeat = Nstage+1,   struct = States),
-        #                        entry("Inputs",                  repeat = Nstage,     struct = Inputs)
-        #])
         
         #Structure for storing NMPC solutions if Nsim provided
         if (Simulation > 0):
-            Vlist = []
-            Vlist.append(entry("BusVoltages",             repeat = Simulation,     struct = self.BusVoltages))
-            if (self._hasStates == True):
-                Vlist.append(entry("States",              repeat = Simulation,   struct = States))
-            Vlist.append(entry("Inputs",                  repeat = Simulation,     struct = Inputs))
-        
-            Vstore    = struct_msym(Vlist)
-            #Vstore = struct_msym([
-            #                        entry("BusVoltages",             repeat = Simulation,     struct = self.BusVoltages),     
-            #                        entry("States",                  repeat = Simulation,     struct = States),
-            #                        entry("Inputs",                  repeat = Simulation,     struct = Inputs)
-            #])
-            
+             
+            Vstore,_,_,_ = self._VariableConstructor(Simulation)
             self.Vstore = Vstore()
-            
                   
         ###############################     BUILD COST AND CONSTRAINTS         ###############################
         
@@ -819,28 +804,35 @@ class PowerGrid:
                 Nprofile = N + 1
                 
         self.Nprofile = Nprofile
-
-                
-
-        InputProfiles = []
+    
+        VProfile,_,_,_ = self._VariableConstructor(self.Nprofile)  
+    
+        self.LBProfiles = VProfile()
+        self.UBProfiles = VProfile()
+        
+        
+        
+        #InputProfiles = []
+        #for plant in self.PlantList:
+        #    InputProfiles.append(
+        #                            entry(  plant.label,   repeat = Nprofile,    struct = plant.Inputs  )
+        #                        )
+        #InputProfilesStruct = struct_msym(InputProfiles)
+        #
+        #self.LBInputProfiles = InputProfilesStruct()
+        #self.UBInputProfiles = InputProfilesStruct()
+        #
+        #
         for plant in self.PlantList:
-            InputProfiles.append(
-                                    entry(  plant.label,   repeat = Nprofile,    struct = plant.Inputs  )
-                                )
-        InputProfilesStruct = struct_msym(InputProfiles)
-
-        self.LBInputProfiles = InputProfilesStruct()
-        self.UBInputProfiles = InputProfilesStruct()
-
-
-        for plant in self.PlantList:
-            self.LBInputProfiles[plant.label,:] = plant.LB['Inputs']
-            self.UBInputProfiles[plant.label,:] = plant.UB['Inputs']
-
+            self.LBProfiles['Inputs',:,plant.label] = plant.LB['Inputs']
+            self.UBProfiles['Inputs',:,plant.label] = plant.UB['Inputs']
+            if hasattr(plant,'_Shoot'):
+                self.LBProfiles['States',:,plant.label] = plant.LB['States']
+                self.UBProfiles['States',:,plant.label] = plant.UB['States']
     
     #ASSIGN PROFILES & SOLVE
 
-    def DYNSolve(self, x0 = [], u0 = 0., init = [], time = 0, Periodic = False, EW = 1.):
+    def DYNSolve(self, x0 = [], u0 = 0., init = [], time = 0, Periodic = False):
         
         lbV  =  self.VOptDispatch(-inf)
         ubV  =  self.VOptDispatch( inf)
@@ -904,7 +896,7 @@ class PowerGrid:
 
         EP = self.EP()
         EP['u0'] = u0
-        EP['EW'] = EW
+
        
         self.OptDispatch.setInput(lbV,      "lbx")
         self.OptDispatch.setInput(ubV,      "ubx")
@@ -972,7 +964,6 @@ class PowerGrid:
                                
         EP       = self.EP()                       
         EP['u0'] = u0
-        EP['EW'] = 1
                                   
         self.CostNMPC.setInput(Vstore,0)
         self.CostNMPC.setInput(EP,1)

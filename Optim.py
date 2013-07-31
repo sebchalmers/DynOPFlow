@@ -13,7 +13,7 @@ import sys
 sys.path.append('/Users/sebastien/Desktop/DynOPFlow')
 #import DynOPFlow
 #reload(DynOPFlow)
-from DynOPFlow import *
+from DynOPFlowProfiles import *
 
 #from scipy import linalg
 def null(A, eps=1e-15):
@@ -151,7 +151,7 @@ for k in [2]:
                        ThermalPower      = Thermal[-1].Inputs['Power']
                        ThermalPower_prev = Thermal[-1].InputsPrev['Power']
                        
-                       Cost = (ThermalPower - ThermalPower_prev)**2 + ThermalPower
+                       Cost = (ThermalPower - ThermalPower_prev)**2 + 1e1*ThermalPower
                        Thermal[-1].setCost(Cost)
                        
                        Const =   [    ThermalPower - ThermalPower_prev - ThermalRamp  ]  # ThermalPower - ThermalPower_prev <= ThermalRamp
@@ -226,21 +226,19 @@ init = Net.init()
 
 init['States',:,'Wind','W'] = x0['Wind',   'W'] 
  
-#Net.LBInputProfiles['Hydro',:,'qflow'] = 6e-4
-#Net.UBInputProfiles['Hydro',:,'qflow'] = 6e-4
 
-Net.LBInputProfiles['Wind',:,'dW']   = dW                                                                 
-Net.UBInputProfiles['Wind',:,'dW']   = dW   
+
+Net.LBProfiles['Inputs',:,'Wind','dW']   = dW                                                                
+Net.UBProfiles['Inputs',:,'Wind','dW']   = dW   
                
-#Net.LBInputProfiles['Load',:,'ActivePower']   = LoadActivePower
-#Net.LBInputProfiles['Load',:,'ReactivePower'] = LoadReactivePower
-#Net.UBInputProfiles['Load',:,'ActivePower']   = LoadActivePower
-#Net.UBInputProfiles['Load',:,'ReactivePower'] = LoadReactivePower
+Net.LBProfiles['Inputs',:,'Load','ActivePower']   = LoadActivePower
+Net.LBProfiles['Inputs',:,'Load','ReactivePower'] = LoadReactivePower
+Net.UBProfiles['Inputs',:,'Load','ActivePower']   = LoadActivePower
+Net.UBProfiles['Inputs',:,'Load','ReactivePower'] = LoadReactivePower
                                               
 Sol,_ = Net.DYNSolve(x0 = x0, u0 = u0, init = init)
 
-Net.ExtractInfo(Sol, PlantPower = True, BusPower = True, TotalPower = True)
-Net.DYNSolvePlot(Sol, dt = 1)
+
 
 Net._HessOptDispatch.setInput(Net.OptDispatch.output('x'),0)
 Net._HessOptDispatch.setInput(1.,1)
@@ -367,7 +365,8 @@ np.dot(V.T,np.dot(Sinv,U.T))
 #plt.show()
 
 
-
+Net.ExtractInfo(Sol, PlantPower = True, BusPower = True, TotalPower = True)
+Net.DYNSolvePlot(Sol, dt = 1)
     
     
  
