@@ -208,13 +208,6 @@ class Plant:
             self._TerminalCost = self._BuildFunc(Cost, Terminal)
      
 
-    #def addPlant(self, Net):
-    #    if (self._frozen == True):
-    #        print "Plant already added to the grid, call ignored"
-    #        return
-    #    
-    #    Net.PlantList.append(self)
-    #    self._frozen = True
 
 class PowerGrid:
     """
@@ -810,19 +803,7 @@ class PowerGrid:
         self.LBProfiles = VProfile()
         self.UBProfiles = VProfile()
         
-        
-        
-        #InputProfiles = []
-        #for plant in self.PlantList:
-        #    InputProfiles.append(
-        #                            entry(  plant.label,   repeat = Nprofile,    struct = plant.Inputs  )
-        #                        )
-        #InputProfilesStruct = struct_msym(InputProfiles)
-        #
-        #self.LBInputProfiles = InputProfilesStruct()
-        #self.UBInputProfiles = InputProfilesStruct()
-        #
-        #
+
         for plant in self.PlantList:
             self.LBProfiles['Inputs',:,plant.label] = plant.LB['Inputs']
             self.UBProfiles['Inputs',:,plant.label] = plant.UB['Inputs']
@@ -845,26 +826,14 @@ class PowerGrid:
         NBus = self.NBus
         NLine     =  len(    self.Graph   )
 
-        ###### SETUP THE BOUNDS #########
-        #Fix input bounds
-        if hasattr(self,'LBInputProfiles') and hasattr(self,'UBInputProfiles'): #if time-varying bounds provided
-            #Embbed inputs profiles if available
-            print "Embbed profiles"
-            for plant in self.PlantList:
-                lbV['Inputs',:,plant.label] = self.LBInputProfiles[plant.label,time:]
-                ubV['Inputs',:,plant.label] = self.UBInputProfiles[plant.label,time:]
-        else:
-            #Embbed plant input bounds if input profiles are not provided
-            print "Embbed plant bounds"
-            for plant in self.PlantList:
-                    lbV['Inputs',:,plant.label] = plant.LB['Inputs'] 
-                    ubV['Inputs',:,plant.label] = plant.UB['Inputs']
-        
+        ####### SETUP THE BOUNDS #########            
         for plant in self.PlantList:
-            if (plant.States.size > 0):       
-                lbV['States',:,plant.label] = plant.LB['States'] 
-                ubV['States',:,plant.label] = plant.UB['States']
-            
+            lbV['Inputs',:,plant.label] = self.LBProfiles['Inputs',time:,plant.label]
+            ubV['Inputs',:,plant.label] = self.UBProfiles['Inputs',time:,plant.label]
+            if hasattr(plant,'_Shoot'):
+                lbV['States',:,plant.label] = self.LBProfiles['States',time:,plant.label]
+                ubV['States',:,plant.label] = self.UBProfiles['States',time:,plant.label]
+                
         #Power flow limitations
         lbg["BusVoltages2"]  = np.array(self.PowerFlowBounds['Vmin'])**2
         ubg["BusVoltages2"]  = np.array(self.PowerFlowBounds['Vmax'])**2

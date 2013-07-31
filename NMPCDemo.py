@@ -156,8 +156,8 @@ for plant in Net.PlantList:
 
 #################    END OF NETWORK DEFINITION    ###########################
 
-Horizon    = 48
-Nsimulation = int(10*24)
+Horizon    = 24
+Nsimulation = int(3*24)
 
 Net.Profiles(Horizon + Nsimulation)
 
@@ -182,32 +182,33 @@ x0['Hydro',  'h']      = 0.9*20
 #Make initial guess
 init = Net.init()
 
-init['States',:,'Wind','W'] = x0['Wind',   'W'] 
- 
-Net.LBInputProfiles['Hydro',:,'qflow'] = 6e-4
-Net.UBInputProfiles['Hydro',:,'qflow'] = 6e-4
+init['States',:,'Wind','W'] = x0['Wind',   'W']
 
-Net.LBInputProfiles['Wind',:,'dW']   = dW                                                                 
-Net.UBInputProfiles['Wind',:,'dW']   = dW   
+Net.LBProfiles['Inputs',:,'Hydro','qflow'] = 6e-4
+Net.UBProfiles['Inputs',:,'Hydro','qflow'] = 6e-4
+
+
+Net.LBProfiles['Inputs',:,'Wind','dW']   = dW                                                                 
+Net.UBProfiles['Inputs',:,'Wind','dW']   = dW   
                
-Net.LBInputProfiles['Load',:,'ActivePower']   = LoadActivePower
-Net.LBInputProfiles['Load',:,'ReactivePower'] = LoadReactivePower
-Net.UBInputProfiles['Load',:,'ActivePower']   = LoadActivePower
-Net.UBInputProfiles['Load',:,'ReactivePower'] = LoadReactivePower
+Net.LBProfiles['Inputs',:,'Load','ActivePower']   = LoadActivePower
+Net.LBProfiles['Inputs',:,'Load','ReactivePower'] = LoadReactivePower
+Net.UBProfiles['Inputs',:,'Load','ActivePower']   = LoadActivePower
+Net.UBProfiles['Inputs',:,'Load','ReactivePower'] = LoadReactivePower
                                               
 #Sol,_ = Net.DYNSolve(x0 = x0, u0 = u0, init = init)
 #
 #Net.ExtractInfo(Sol, PlantPower = True, BusPower = True, TotalPower = True)
 #Net.DYNSolvePlot(Sol, dt = 1)
-#
+##
 #assert(0==1)                                             
 Traj, NMPC_Info = Net.NMPCSimulation(x0 = x0, u0 = u0, init = init, Simulation = Nsimulation) 
                        
 #Plotting
 Net.ExtractInfo(Traj)
 
-Path = '/Users/sebastien/Desktop/Research/PowerFlowCodes/Paper/Figures/Simulations/Sim5'
-SavedFigs = Net.DYNSolvePlot(Traj, dt = 1/24., Path = Path, LW = 2)          
+
+Net.DYNSolvePlot(Traj, dt = 1/24., LW = 2)          
 
 
 ## Create additional figures for the paper

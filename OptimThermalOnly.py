@@ -13,7 +13,7 @@ import sys
 sys.path.append('/Users/sebastien/Desktop/DynOPFlow')
 #import DynOPFlow
 #reload(DynOPFlow)
-from DynOPFlowProfiles import *
+from DynOPFlow import *
 
 #from scipy import linalg
 def null(A, eps=1e-15):
