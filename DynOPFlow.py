@@ -37,10 +37,13 @@ plt.rcParams['text.usetex'] = False
 #rho_water = 1e3
 #gravity   = 9.81
     
-        
+def assertList(var):
+    if not(isinstance(var,list)):
+        var = [var]
+    return var        
 
 class Plant:
-    def __init__(self, Inputs = [], States = [], R = 0., Directionality = 'Mono', Load = False, Bus = [], label = []):        # set of reasons (strings) why the Dae cannot be modified (add new x/z/u/p/output)
+    def __init__(self, Inputs = [], States = [], ExtParameters = [], R = 0., Directionality = 'Mono', Load = False, Bus = [], label = []):        # set of reasons (strings) why the Dae cannot be modified (add new x/z/u/p/output)
 
         self._frozen = False
         self.Bus     = Bus
@@ -49,23 +52,7 @@ class Plant:
         self._Load = Load
         self.R = R
         
-        #Plant Default Input structure (list ready to be embedded in a struct_sym)
-        #RealImag      = struct_ssym([(
-        #                            entry("Real"),
-        #                            entry("Imag")
-        #                            )])
-
-        #PowerLoad     = struct_ssym([(
-        #                            entry("ActivePower"),
-        #                            entry("ReactivePower")
-        #                            )])
-
-        
-        #DirectedPower = struct_ssym([(
-        #                            entry("Charge"),
-        #                            entry("Discharge")
-        #                            )])
-        
+        #Plant Default Input structure (list ready to be embedded in a struct_sym)        
         InputList = [entry("CurrentReal"),
                      entry("CurrentImag")]
         
@@ -85,19 +72,27 @@ class Plant:
 
         if (len(Inputs) > 0):
             self._additionalInputs = Inputs #Keep the list for plotting purposes
-            for key in Inputs:
+            for key in assertList(Inputs):
                 InputList.append(entry(key))
     
         # States declared by the user
+        #if (len(States) > 0): ################ INTRODUCE THIS ######## !!!!
         StateList = []
-        for key in States:
+        for key in assertList(States):
             StateList.append(entry(key)) 
     
+        # External parameters declared by the user
+        if (len(ExtParameters) > 0):
+            ExtParamList = []
+            for key in assertList(ExtParameters):
+                ExtParamList.append(entry(key))
+            self.ExtParameters      = struct_ssym(ExtParamList)    
 
         # lists of names (strings)
         self.States            = struct_ssym(StateList)
         self.Inputs            = struct_ssym(InputList)
         self.InputsPrev        = struct_ssym(InputList)
+        
         
         #Structure for plant bounds
         Bound = [entry('Inputs',   struct = self.Inputs)]
@@ -116,7 +111,7 @@ class Plant:
         else:
             self.LB['Inputs','ActivePower'] = 0.
             
-    
+
             
     def setDynamics(self, RHS = [], dt = 1., nstep = 10):
         if (self._frozen == True):
@@ -173,6 +168,9 @@ class Plant:
         else:
             listFuncInput = [X]
 
+        if hasattr(self,'ExtParameters'):
+            listFuncInput.append(self.ExtParameters)
+            
         Func = SXFunction(listFuncInput,[Expr])
         Func.init()
         
@@ -481,9 +479,13 @@ class PowerGrid:
         u0 = struct_msym(Inputs)
         x0 = struct_msym(States)
         
-        EP = struct_msym([
-                                        entry('u0',  struct = u0)
-                        ])
+        #User-specified additional parameters
+        EPList = [entry('u0',  struct = u0)]
+        for plant in self.PlantList:
+            if hasattr(plant,'ExtParameters'):
+                EPList.append(entry(plant.label, struct = plant.ExtParameters))
+        
+        EP = struct_msym(EPList)
         
         Vlist = []
         Vlist.append(entry("BusVoltages",             repeat = N,     struct = self.BusVoltages))
@@ -522,6 +524,9 @@ class PowerGrid:
 
                     if  (plant.States.size > 0):
                         CostInputList.append(V['States',k,plant.label])
+
+                    if hasattr(plant,'ExtParameters'):
+                        CostInputList.append(EP[plant.label])
 
                     [Cost_k] = plant._StageCost.call(CostInputList)
                     Cost += Cost_k
@@ -814,7 +819,7 @@ class PowerGrid:
         return Nprofile
     #ASSIGN PROFILES & SOLVE
 
-    def DYNSolve(self, x0 = [], u0 = 0., init = [], time = 0, Periodic = False):
+    def DYNSolve(self, x0 = [], u0 = 0., EP = [], init = [], time = 0, Periodic = False):
         
         lbV  =  self.VOptDispatch(-inf)
         ubV  =  self.VOptDispatch( inf)
@@ -864,7 +869,8 @@ class PowerGrid:
         #    lbg['Periodic'] = -inf
         #    ubg['Periodic'] =  inf
 
-        EP = self.EP()
+        if (EP == []):
+            EP = self.EP()
         EP['u0'] = u0
 
        
@@ -882,6 +888,7 @@ class PowerGrid:
         self.ubV = ubV
         self.ubg = ubg
         self.lbg = lbg
+        self.ep  = EP
         
         v_opt = self.VOptDispatch(self.OptDispatch.output("x"))
         
@@ -914,13 +921,13 @@ class PowerGrid:
     
     
     
-    def NMPCSimulation(self, x0 = [], u0 = [], init = [], Simulation = 0):
+    def NMPCSimulation(self, x0 = [], u0 = [], EP = [], init = [], Simulation = 0):
         #####    NMPC Loop     #####
         NMPC = {'time': 0, 'success' : [], 'Traj' : []}
         Vstore = self.Vstore
 
         while (NMPC['time'] < Simulation):
-            Sol, stats = self.DYNSolve(x0 = x0, u0 = u0, time = NMPC['time'], init = init)
+            Sol, stats = self.DYNSolve(x0 = x0, u0 = u0, EP = EP, time = NMPC['time'], init = init)
             
             NMPC['success'].append(stats)
             NMPC['Traj'].append(Sol)
