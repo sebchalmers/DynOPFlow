@@ -730,7 +730,7 @@ class PowerGrid:
         # set-up solver
         solver = IpoptSolver(nl)  
         solver.setOption("expand",True)
-        #solver.setOption("print_level",0)
+        solver.setOption("print_level",0)
         solver.setOption("hessian_approximation","exact")
         solver.setOption("max_iter",2000)
         solver.setOption("tol",1e-10)
@@ -884,9 +884,6 @@ class PowerGrid:
         if not(ExtParameters == []):
             EP['ExtParameters'] = ExtParameters    
         EP['u0'] = u0
-
-        #plt.plot(ubV['States',:,'FlexCons','E'])
-        #plt.show()
        
         self.OptDispatch.setInput(lbV,      "lbx")
         self.OptDispatch.setInput(ubV,      "ubx")
