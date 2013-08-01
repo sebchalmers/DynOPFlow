@@ -159,21 +159,20 @@ for plant in Net.PlantList:
     
     
 #####   Flexible Energy Consumer  #####
-FlexCons = Plant(Bus = 3, R = 0.1, label = 'FlexCons', States = ['E'])
+FlexCons = Plant(Bus = 0, R = 0.1, label = 'FlexCons', States = ['E'])
 
 E = FlexCons.States['E']
 P = FlexCons.Inputs['Power']
 
+
+
 dE = P
 FlexCons.setDynamics(RHS = dE, dt = dt)
 
-FlexCons.UB['States','E']     = 0.
-FlexCons.UB['Inputs','Power'] = 0.
-FlexCons.LB['Inputs','Power'] = -5e2
-
-
-
 Net.addPlant(FlexCons)
+
+FlexCons.UB['Inputs','Power'] = 0
+FlexCons.LB['Inputs','Power'] = -5e2
 
 #################    END OF NETWORK DEFINITION    ###########################
 def ensure_dir(f):
@@ -181,7 +180,7 @@ def ensure_dir(f):
         os.makedirs(f)
         
 Horizon    = 24
-Nsimulation = int(0.25*24)
+Nsimulation = int(5*24)
 
 Net.Profiles(Horizon + Nsimulation)
 
@@ -192,7 +191,7 @@ dW = [rand.normalvariate(0,0.0) for k in range(Nprofile)]
 LoadActivePower   = [300*np.cos(2*np.pi*k*dt/24.) - 1000  for k in range(Nprofile)]
 LoadReactivePower = [0.75*LoadActivePower[k] for k in range(Nprofile)]
 
-FlexEnergy = [k*0 for k in range(Nprofile+1)] 
+
 
 Net.Dispatch(Horizon = Horizon, Simulation = Nsimulation)
 
@@ -201,10 +200,10 @@ u0 = Net.u0()
 x0 = Net.x0()
 
 u0['Thermal','Power']   = 0.
-x0['Wind',    'W']      = 10.
+x0['Wind',    'W']      = 9.5
 x0['Storage', 'E']      = 0.9*2e3
 x0['Hydro',   'h']      = 0.9*20
-x0['FlexCons','E']      = 0.
+x0['FlexCons','E']      = -1e-3    #Note: it is crucial that x0 is inside the feasible domain
 
 #Make initial guess
 init = Net.init()
@@ -223,25 +222,30 @@ Net.LBProfiles['Inputs',:,'Load','ReactivePower'] = LoadReactivePower
 Net.UBProfiles['Inputs',:,'Load','ActivePower']   = LoadActivePower
 Net.UBProfiles['Inputs',:,'Load','ReactivePower'] = LoadReactivePower
    
-Net.LBProfiles['States',:,'FlexCons','E'] =  0.  #EXIT: Optimal Solution Found.
-#Net.LBProfiles['States',:,'FlexCons','E'] = -1. #EXIT: Invalid number in NLP function or derivative detected.
-Net.UBProfiles['States',:,'FlexCons','E'] =  0.
+FlexEnergy = [2*pi*k/24. for k in range(Nprofile+1)]
+FlexEnergy = np.sin(FlexEnergy)
+FlexEnergy = list(-np.cumsum(np.cumsum(FlexEnergy)))
 
-Sol,_ = Net.DYNSolve(x0 = x0, u0 = u0, init = init)
+#FlexEnergy = [-k*100 for k in range(Nprofile+1)]
 
+Net.LBProfiles['States',:,'FlexCons','E'] = 1.1*FlexEnergy[-1] 
+Net.UBProfiles['States',:,'FlexCons','E'] = FlexEnergy
+
+#Sol,_ = Net.DYNSolve(x0 = x0, u0 = u0, init = init)
+#
 #Net.ExtractInfo(Sol, PlantPower = True, BusPower = True, TotalPower = True)
 #Net.DYNSolvePlot(Sol, dt = 1)
 
 #assert(0==1)                                             
-#Traj, NMPC_Info = Net.NMPCSimulation(x0 = x0, u0 = u0, init = init, Simulation = Nsimulation) 
-#                       
-##Plotting
-#Net.ExtractInfo(Traj)
-#
-#Path = '../../Figures/Simulations/Sim5'
-#ensure_dir(Path)
-#
-#SavedFigs = Net.DYNSolvePlot(Traj, dt = 1/24., Path = Path, LW = 2)          
+Traj, NMPC_Info = Net.NMPCSimulation(x0 = x0, u0 = u0, init = init, Simulation = Nsimulation) 
+                       
+#Plotting
+Net.ExtractInfo(Traj)
+
+Path = '../../Figures/Simulations/Sim5'
+ensure_dir(Path)
+
+SavedFigs = Net.DYNSolvePlot(Traj, dt = 1/24.,  LW = 2)          
 
 
 

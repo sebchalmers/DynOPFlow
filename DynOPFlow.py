@@ -885,6 +885,8 @@ class PowerGrid:
             EP['ExtParameters'] = ExtParameters    
         EP['u0'] = u0
 
+        #plt.plot(ubV['States',:,'FlexCons','E'])
+        #plt.show()
        
         self.OptDispatch.setInput(lbV,      "lbx")
         self.OptDispatch.setInput(ubV,      "ubx")
@@ -1127,6 +1129,7 @@ class PowerGrid:
         plt.ylabel('kV')
         #plt.xlabel('time (s)')
         plt.title("Voltages, |.|")
+        plt.grid()
         
         plt.subplot(2,3,2)
         plt.hold('on')
@@ -1135,6 +1138,7 @@ class PowerGrid:
         plt.ylabel('deg')
         #plt.xlabel('time (s)')
         plt.title("Voltage, angle")
+        plt.grid()
         
         plt.subplot(2,3,5)
         plt.hold('on')
@@ -1144,6 +1148,7 @@ class PowerGrid:
         plt.xlabel('time (s)')
         plt.title("Active power")
         plt.legend(bbox_to_anchor=(1, 1), loc=2, borderaxespad=0.)
+        plt.grid()
         
         plt.subplot(2,3,4)
         plt.hold('on')
@@ -1152,6 +1157,7 @@ class PowerGrid:
         plt.ylabel('GW')
         plt.xlabel('time (s)')
         plt.title("Reactive power")
+        plt.grid()
         
         plt.subplot(2,3,3)
         plt.hold('on')
@@ -1161,6 +1167,7 @@ class PowerGrid:
         plt.xlabel('time (s)')
         plt.title('Current, |.|')
         #plt.legend(bbox_to_anchor=(1, 1), loc=2, borderaxespad=0.)
+        plt.grid()
         
         SaveFig(Path,'Grid')
         
@@ -1174,6 +1181,7 @@ class PowerGrid:
         plt.ylabel('kA')
         plt.title("Lines current |.|")
         plt.legend(bbox_to_anchor=(1, 1), loc=2, borderaxespad=0.)
+        plt.grid()
 
         SaveFig(Path,'Lines')
 
@@ -1184,11 +1192,13 @@ class PowerGrid:
             plt.subplot(SizeSubpltAll,SizeSubpltAll,fig)
             plt.step(time['Inputs'],1e-3*self.SolutionInfo['PlantActivePower'][plant.label][0], color = 'k', label = 'Act. Power', linewidth = LW)
             plt.step(time['Inputs'],1e-3*self.SolutionInfo['PlantReactivePower'][plant.label][0], color = 'r', label = 'React. Power', linewidth = LW)
+            
             fig += 1
             plt.ylabel('GW')
             plt.xlabel('time (s)')
             plt.title(str(plant.label)+', bus '+str(plant.Bus))
-                
+            plt.grid()
+            
         plt.legend(bbox_to_anchor=(1, 1), loc=2, borderaxespad=0.)
 
         SaveFig(Path,'BusPower')
@@ -1213,6 +1223,7 @@ class PowerGrid:
         plt.xlabel('time (s)')
         plt.ylabel('GW')
         plt.title('Plant power')
+        plt.grid()
         
         SaveFig(Path,'PlantPower')
  
@@ -1223,6 +1234,7 @@ class PowerGrid:
         plt.xlabel('time (s)')
         plt.ylabel('%')
         plt.title('Transmission efficiency')
+        plt.grid()
         
         SaveFig(Path,'GridEfficiency')
 
@@ -1243,6 +1255,7 @@ class PowerGrid:
                     plt.title(plant.label+', state: '+key)
                     plt.xlabel('time (s)')
                     plt.ylabel(UnitDic[key])
+                    plt.grid()
                     fig += 1
                     
         SaveFig(Path,'PlantStates')
@@ -1267,6 +1280,7 @@ class PowerGrid:
                 plt.step(time['Inputs'],np.array(v_opt['Inputs',:,plant.label,'CurrentImag']),where = 'post',label = 'Complex Current')
                 plt.title('Current')
                 plt.legend()
+                plt.grid()
                 
                 plt.subplot(subPltNum,subPltNum,1)
                 plt.title('Power')
@@ -1276,7 +1290,8 @@ class PowerGrid:
                     plt.step(time['Inputs'],np.array(v_opt['Inputs',:,plant.label,   'Pcharge']),where = 'post',label = 'Pcharge')
                     plt.step(time['Inputs'],np.array(v_opt['Inputs',:,plant.label,'Pdischarge']),where = 'post',label = 'Pdischarge')
                 plt.legend()    
-                    
+                plt.grid()
+                
                 subplt = 2                
                 if hasattr(plant,'_additionalInputs'):
                     for key in plant._additionalInputs:
@@ -1284,7 +1299,7 @@ class PowerGrid:
                         plt.subplot(subPltNum,subPltNum,subplt)
                         plt.step(time['Inputs'],np.array(v_opt['Inputs',:,plant.label,key]),where = 'post',label = key) 
                         plt.legend()
-                        
+                        plt.grid()
                 if hasattr(plant,'_Shoot'):
                     for key in plant.States.keys():
                         subplt += 1
@@ -1292,6 +1307,8 @@ class PowerGrid:
                 
                         plt.plot(time['States'],np.array(v_opt['States',:,plant.label,key]),label = key) 
                         plt.legend()#bbox_to_anchor=(1, 1), loc=2, borderaxespad=0.)
+                        plt.grid()
+                        
                 fig += 1
                 
         if (Show == True):        
