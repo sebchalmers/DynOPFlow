@@ -45,6 +45,7 @@ def assertList(var):
 class Plant:
     def __init__(self, Inputs = [], States = [], ExtParameters = [], R = 0., Directionality = 'Mono', Load = False, Bus = [], label = []):        # set of reasons (strings) why the Dae cannot be modified (add new x/z/u/p/output)
 
+        
         self._frozen = False
         self.Bus     = Bus
         self.label = label
@@ -480,12 +481,17 @@ class PowerGrid:
         x0 = struct_msym(States)
         
         #User-specified additional parameters
-        EPList = [entry('u0',  struct = u0)]
+        EPList = []
         for plant in self.PlantList:
             if hasattr(plant,'ExtParameters'):
                 EPList.append(entry(plant.label, struct = plant.ExtParameters))
         
-        EP = struct_msym(EPList)
+        ExtParameters = struct_msym(EPList)
+        
+        EP = struct_msym([
+                            entry('u0',              struct = u0),
+                            entry('ExtParameters',   struct = ExtParameters)
+                         ])
         
         Vlist = []
         Vlist.append(entry("BusVoltages",             repeat = N,     struct = self.BusVoltages))
@@ -495,7 +501,7 @@ class PowerGrid:
         
         V = struct_msym(Vlist)
 
-        return V, u0, x0, EP
+        return V, u0, x0, EP, ExtParameters
     
 
     def _CostConstructor(self, V, EP, Nstage, GridLoss):
@@ -526,13 +532,17 @@ class PowerGrid:
                         CostInputList.append(V['States',k,plant.label])
 
                     if hasattr(plant,'ExtParameters'):
-                        CostInputList.append(EP[plant.label])
+                        CostInputList.append(EP['ExtParameters',plant.label])
 
                     [Cost_k] = plant._StageCost.call(CostInputList)
                     Cost += Cost_k
                     
             if (hasattr(plant,'_TerminalCost')):
-                [Cost_k] = plant._TerminalCost.call([V['States',-1,plant.label]])
+                CostInputList = [V['States',-1,plant.label]]
+                if hasattr(plant,'ExtParameters'):
+                        CostInputList.append(EP['ExtParameters',plant.label])
+                        
+                [Cost_k] = plant._TerminalCost.call(CostInputList)
                 Cost += Cost_k
                         
         Cost = Cost/Nstage
@@ -573,13 +583,13 @@ class PowerGrid:
   
         ###################   CONSTRUCT VARIABLES    ########################
              
-        V, u0, x0, EP = self._VariableConstructor(Nstage)
+        V, u0, x0, EP, ExtParameters = self._VariableConstructor(Nstage)
         
         
         #Structure for storing NMPC solutions if Nsim provided
         if (Simulation > 0):
              
-            Vstore,_,_,_ = self._VariableConstructor(Simulation)
+            Vstore,_,_,_,_ = self._VariableConstructor(Simulation)
             self.Vstore = Vstore()
                   
         ###############################     BUILD COST AND CONSTRAINTS         ###############################
@@ -720,7 +730,7 @@ class PowerGrid:
         # set-up solver
         solver = IpoptSolver(nl)  
         solver.setOption("expand",True)
-        #solver.setOption("print_level",2)
+        #solver.setOption("print_level",0)
         solver.setOption("hessian_approximation","exact")
         solver.setOption("max_iter",2000)
         solver.setOption("tol",1e-10)
@@ -742,7 +752,8 @@ class PowerGrid:
                 
         self.u0            = u0
         self.x0            = x0
-        self.EP            = EP
+        self.ExtParameters = ExtParameters
+        self._EP           = EP
         self.VOptDispatch  = V
         self.OptDispatch   = solver        
         self.gOptDispatch  = g
@@ -803,7 +814,7 @@ class PowerGrid:
                 
         self.Nprofile = Nprofile
     
-        VProfile,_,_,_ = self._VariableConstructor(self.Nprofile)  
+        VProfile,_,_,_,_ = self._VariableConstructor(self.Nprofile)  
     
         self.LBProfiles = VProfile()
         self.UBProfiles = VProfile()
@@ -819,7 +830,7 @@ class PowerGrid:
         return Nprofile
     #ASSIGN PROFILES & SOLVE
 
-    def DYNSolve(self, x0 = [], u0 = 0., EP = [], init = [], time = 0, Periodic = False):
+    def DYNSolve(self, x0 = [], u0 = 0., ExtParameters = [], init = [], time = 0, Periodic = False):
         
         lbV  =  self.VOptDispatch(-inf)
         ubV  =  self.VOptDispatch( inf)
@@ -868,9 +879,10 @@ class PowerGrid:
         #if (Periodic == False):
         #    lbg['Periodic'] = -inf
         #    ubg['Periodic'] =  inf
-
-        if (EP == []):
-            EP = self.EP()
+        
+        EP = self._EP()
+        if not(ExtParameters == []):
+            EP['ExtParameters'] = ExtParameters    
         EP['u0'] = u0
 
        
@@ -921,13 +933,13 @@ class PowerGrid:
     
     
     
-    def NMPCSimulation(self, x0 = [], u0 = [], EP = [], init = [], Simulation = 0):
+    def NMPCSimulation(self, x0 = [], u0 = [], ExtParameters = [], init = [], Simulation = 0):
         #####    NMPC Loop     #####
         NMPC = {'time': 0, 'success' : [], 'Traj' : []}
         Vstore = self.Vstore
 
         while (NMPC['time'] < Simulation):
-            Sol, stats = self.DYNSolve(x0 = x0, u0 = u0, EP = EP, time = NMPC['time'], init = init)
+            Sol, stats = self.DYNSolve(x0 = x0, u0 = u0, ExtParameters = ExtParameters, time = NMPC['time'], init = init)
             
             NMPC['success'].append(stats)
             NMPC['Traj'].append(Sol)
@@ -939,7 +951,7 @@ class PowerGrid:
             
             NMPC['time'] += 1
                                
-        EP       = self.EP()                       
+        EP       = self._EP()                       
         EP['u0'] = u0
                                   
         self.CostNMPC.setInput(Vstore,0)
