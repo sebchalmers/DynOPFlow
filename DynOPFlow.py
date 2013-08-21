@@ -509,16 +509,17 @@ class PowerGrid:
         Constructor for the Cost function, handy to build the cost for different V:s
         """
         
-        Cost = 0
-        
+        Cost_Lagrange = 0
+        #Grid loss
         if (GridLoss == True):
             NLine     =  len(    self.Graph   )        
             for k in range(Nstage):
                 # Grid losses
                 [LineCurrents2_k] = self.LineCurrents2Func.call([V['BusVoltages',k]])
                 for line in range(NLine):
-                    Cost += np.real(self.Graph[line][2])*LineCurrents2_k[line]
+                    Cost_Lagrange += np.real(self.Graph[line][2])*LineCurrents2_k[line]
         
+        #Plants Lagrange cost
         for plant in self.PlantList:
             for k in range(Nstage):    
                 if (hasattr(plant,'_StageCost')):
@@ -535,21 +536,27 @@ class PowerGrid:
                         CostInputList.append(EP['ExtParameters',plant.label])
 
                     [Cost_k] = plant._StageCost.call(CostInputList)
-                    Cost += Cost_k
-                    
+                    Cost_Lagrange += Cost_k
+        
+        #Plants Terminal cost
+        Cost_Terminal = 0
+        for plant in self.PlantList:            
             if (hasattr(plant,'_TerminalCost')):
                 CostInputList = [V['States',-1,plant.label]]
                 if hasattr(plant,'ExtParameters'):
                         CostInputList.append(EP['ExtParameters',plant.label])
                         
                 [Cost_k] = plant._TerminalCost.call(CostInputList)
-                Cost += Cost_k
+                Cost_Terminal += Cost_k
                         
-        Cost = Cost/Nstage
-        CostF = MXFunction([V,EP],[Cost])
-        CostF.init() 
-
-        return Cost, CostF
+        Cost = (Cost_Lagrange+Cost_Terminal)/Nstage
+        
+        LagrangeCostFunc = MXFunction([V,EP],[Cost_Lagrange])
+        LagrangeCostFunc.init() 
+        TerminalCostFunc = MXFunction([V,EP],[Cost_Terminal])
+        TerminalCostFunc.init()
+        
+        return Cost, LagrangeCostFunc, TerminalCostFunc
 
     def Dispatch(self, Horizon = 24, Simulation = 0, GridLoss = True):
         """
@@ -594,14 +601,13 @@ class PowerGrid:
                   
         ###############################     BUILD COST AND CONSTRAINTS         ###############################
         
-        Cost, CostF = self._CostConstructor(V, EP, Nstage, GridLoss)
+        Cost, LagrangeCostFunc, TerminalCostFunc = self._CostConstructor(V, EP, Nstage, GridLoss)
         
         if (Simulation > 0):   
-            _,self.CostNMPC = self._CostConstructor(Vstore, EP, Simulation, GridLoss)
+            _, self.LagrangeCost, self.TerminalCost = self._CostConstructor(Vstore, EP, Simulation, GridLoss)
         else:
-            self.CostNMPC = CostF
- 
- 
+            self.LagrangeCost = LagrangeCostFunc
+            self.TerminalCost = TerminalCostFunc
 
         # OPF constraints
         CurrentBalance  = []
@@ -685,6 +691,7 @@ class PowerGrid:
             
                 #A bit ugly...
                 if hasattr(plant,'_StageConst'):
+                    #print "Plant", plant.label, "has stage inequality constraints"
                     ConstInputList = [V['Inputs',k,plant.label]]
                     if (k==0):
                         ConstInputList.append(  EP['u0',plant.label]       )
@@ -701,6 +708,7 @@ class PowerGrid:
         ### END OF STAGE CONSTRAINTS
         for plant in self.PlantList:
             if (hasattr(plant,'_TerminalConst')):
+                #print "Plant", plant.label, "has terminal inequality constraints"
                 [Const_k] = plant._TerminalConst.call([V['States',-1,plant.label]])
                 IneqConst.append(Const_k)
 
@@ -731,9 +739,10 @@ class PowerGrid:
         solver = IpoptSolver(nl)  
         solver.setOption("expand",True)
         solver.setOption("print_level",0)
+        solver.setOption("parametric",True)  
         solver.setOption("hessian_approximation","exact")
         solver.setOption("max_iter",2000)
-        solver.setOption("tol",1e-10)
+        solver.setOption("tol",1e-6)
         solver.setOption("linear_solver","ma27")
         
         solver.init()
@@ -953,11 +962,11 @@ class PowerGrid:
         EP       = self._EP()                       
         EP['u0'] = u0
                                   
-        self.CostNMPC.setInput(Vstore,0)
-        self.CostNMPC.setInput(EP,1)
-        self.CostNMPC.evaluate()
+        self.LagrangeCost.setInput(Vstore,0)
+        self.LagrangeCost.setInput(EP,1)
+        self.LagrangeCost.evaluate()
         
-        NMPC['Cost'] = self.CostNMPC.output()
+        NMPC['LagrangeCost'] = self.LagrangeCost.output()
         return Vstore, NMPC    
 
     
@@ -1239,7 +1248,7 @@ class PowerGrid:
         plt.figure(10)
         fig = 0
         Nsubplot = 0
-        UnitDic = {'h': 'm', 'W': 'm/s','E': 'MJ'}
+        UnitDic = {'h': 'm', 'W_error': 'm/s','E': 'MJ'}
         for plant in PlantList:
             if hasattr(plant,'_Shoot'):
                 Nsubplot += len(plant.States.keys())
